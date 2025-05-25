@@ -1,5 +1,3 @@
-from typing import List
-
 import torch
 import torch.nn as nn
 
@@ -12,13 +10,14 @@ else:
 
 
 class INTQuantizer(nn.Module):
+
     def __init__(
         self,
         fmt: ElemFormat,
         group_size=-1,
         axes = -1,
         asymmetric=True,
-        device=torch.device("cpu"),
+        device=torch.device('cpu'),
         **kwargs,
     ):
         """
@@ -27,6 +26,7 @@ class INTQuantizer(nn.Module):
         more accurate in theory, but there’s really no significant difference in practice."
         So we use resitrctive-range of [-127, 127] instead of [-128, 127].
         """
+
         """
         group_size:
             - 0: per-tensor quant.
@@ -40,15 +40,15 @@ class INTQuantizer(nn.Module):
         """
         super().__init__()
 
-        assert fmt in (ElemFormat.int4, ElemFormat.int8), (
+        assert fmt in (ElemFormat.int4, ElemFormat.int8, ElemFormat.int32), (
             f"Not support Format for {self.__class__.__name__}"
         )
         _, self.q_bits, _, max_norm, _ = _get_format_params(fmt)
         self.q_max = torch.tensor(max_norm * 2**(self.q_bits-2)).to(device=device)
         self.q_min = -self.q_max
+        self.str_fmt = str(fmt)
         self.configure(asymmetric=asymmetric, group_size=group_size, axes=axes)
         self.enable()
-        self.str_fmt = str(fmt)
 
     def configure(self, asymmetric, group_size, axes):
         assert (group_size != 1) or not asymmetric, (
@@ -109,6 +109,7 @@ class INTQuantizer(nn.Module):
                     self.group_size = x.shape[-1]
                 if self.group_size == -2: # per-channel quant.
                     self.group_size = x.shape[-2]
+
                 x, *meta = _reshape_to_blocks(
                     x, block_size=self.group_size, axes=self.axes,
                 )
@@ -153,10 +154,12 @@ if __name__ == "__main__":
     print(x)
 
     quantizer = INTQuantizer(
-        fmt=ElemFormat.int8, group_size=-1, axes=-1, asymmetric=True, device=device
+        fmt=ElemFormat.int8, group_size=2, axes=-2, asymmetric=True, device=device
     )
     print(quantizer)
+    scales, zeros = quantizer.find_params(x)
+    print(scales, zeros)
     x_dq = quantizer(x)
     print(x_dq)
-    print(((x-x_dq)**2).mean())
+    # print(((x-x_dq)**2).mean())
 
