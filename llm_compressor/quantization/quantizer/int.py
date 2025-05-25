@@ -61,9 +61,11 @@ class INTQuantizer(nn.Module):
             self.axes = -1
         elif self.group_size == -2:
             self.axes = -2
+        elif isinstance(self.group_size, list) or isinstance(self.group_size, tuple):
+            self.axes = -1
         else:
             self.axes = axes
-
+        
     def find_params(self, x, already_reshaped=False):
         if (self.group_size != 0) & (not already_reshaped):
             if self.group_size == -1: # per-token quant.
@@ -79,7 +81,7 @@ class INTQuantizer(nn.Module):
                 max_val = x.amax(dim=self.axes, keepdim=True)
                 min_val = x.amin(dim=self.axes, keepdim=True)
                 scales = (max_val - min_val) / (self.q_max - self.q_min)
-                zeros = self.q_min - torch.round(min_val / scales)
+                zeros = (max_val + min_val) / 2
             else:
                 max_val = x.abs().amax(dim=self.axes, keepdim=True)
                 scales = max_val / self.q_max
@@ -89,7 +91,7 @@ class INTQuantizer(nn.Module):
                 max_val = x.amax()
                 min_val = x.amin()
                 scales = (max_val - min_val) / (self.q_max - self.q_min)
-                zeros = self.q_min - torch.round(min_val / scales)
+                zeros = (max_val + min_val) / 2
             else:
                 max_val = x.abs().amax()
                 scales = max_val / self.q_max
@@ -130,9 +132,9 @@ class INTQuantizer(nn.Module):
         return x
 
     def quantize(self, x, scales, zeros):
-        quantized = torch.round(x / scales) + zeros
+        quantized = torch.round((x - zeros) / scales)
         quantized = torch.clamp(quantized, self.q_min, self.q_max)
-        return (quantized - zeros) * scales
+        return quantized * scales + zeros
 
     def enable(self):
         self.is_enable = True
@@ -154,12 +156,15 @@ if __name__ == "__main__":
     print(x)
 
     quantizer = INTQuantizer(
-        fmt=ElemFormat.int8, group_size=2, axes=-2, asymmetric=True, device=device
+        fmt=ElemFormat.int8, group_size=0, axes=-2, asymmetric=False, device=device
     )
+    # quantizer = INTQuantizer(
+    #     fmt=ElemFormat.int8, group_size=(6, 4), axes=-1, asymmetric=False, device=device
+    # )
     print(quantizer)
     scales, zeros = quantizer.find_params(x)
-    print(scales, zeros)
-    x_dq = quantizer(x)
+    print(scales, zeros, scales.shape)
+    x_dq = quantizer(x, scales=scales, zeros=zeros)
     print(x_dq)
-    # print(((x-x_dq)**2).mean())
+    print(((x-x_dq)**2).mean())
 

@@ -57,6 +57,8 @@ class FPQuantizer(nn.Module):
             self.axes = -1
         elif self.group_size == -2:
             self.axes = -2
+        elif isinstance(self.group_size, list) or isinstance(self.group_size, tuple):
+            self.axes = -1
         else:
             self.axes = axes
 
@@ -162,7 +164,7 @@ if __name__ == "__main__":
     print(x)
 
     quantizer = FPQuantizer(
-        fmt=ElemFormat.fp4_e2m1, group_size=2, axes=-2, device=device
+        fmt=ElemFormat.fp8_e4m3, group_size=(6, 4), axes=-1, asymmetric=False, device=device
     )
     print(quantizer)
     x_dq = quantizer(x)
