@@ -34,7 +34,7 @@ class MXQuantizer(nn.Module):
             - 32: per-group quant.
         axes:
             - -1: per-token wise
-            - -2: per-channle wise
+            - -2: per-channal wise
         """
         super().__init__()
 
@@ -53,7 +53,7 @@ class MXQuantizer(nn.Module):
         self.max_norm = torch.tensor(max_norm).to(device)
         self.min_norm = torch.tensor(min_norm).to(device)
         self.scale_ebits = kwargs.pop("scale_ebits", 8)
-        self.scale_mbits = kwargs.pop("scale_mbits", 1)
+        self.scale_mbits = kwargs.pop("scale_mbits", 0)
         self.str_fmt = str(fmt)
         self.configure(asymmetric=asymmetric, group_size=group_size, axes=axes)
         self.enable()
@@ -64,12 +64,15 @@ class MXQuantizer(nn.Module):
         self.axes = axes
 
     def find_params(self, x, already_reshaped=False):
+        dtype = x.dtype
         if not already_reshaped:
-            x, self.axes, *_ = _reshape_to_blocks(
+            x, self.shared_axes, *_ = _reshape_to_blocks(
                 x,
                 block_size=self.group_size,
                 axes=self.axes,
             )
+        else:
+            self.shared_axes = [self.axes + 2]
 
         if self.asymmetric:
             max_val = x.amax(dim=self.axes, keepdim=True)
@@ -78,13 +81,11 @@ class MXQuantizer(nn.Module):
         else:
             zeros = torch.tensor(0)
 
-        shared_exp_axes = [x + 1 for x in self.axes]
-
         # Get shared exponents & shared mantissas(NanoMantissa from Nanoscaling FP:NxFP)
         shared_exp, shared_mts = _shared_exponents(
             (x - zeros),
             method="max",
-            axes=shared_exp_axes,
+            axes=[x + 1 for x in self.shared_axes],
             mbits=self.scale_mbits,
         )
 
@@ -99,8 +100,7 @@ class MXQuantizer(nn.Module):
 
         scales = (2**shared_exp) * shared_mts
         assert torch.isnan(scales).sum() == 0
-        print(scales)
-        return scales, zeros
+        return scales.to(dtype), zeros.to(dtype)
 
     def forward(self, x, **kwargs):
         scales = kwargs.pop("scales", None)
@@ -129,8 +129,8 @@ class MXQuantizer(nn.Module):
         return x
 
     def quantize(self, x, scales, zeros):
-        x = (x - zeros) / (2**scales)
-        A = _quantize_elemwise_core(
+        x = (x - zeros) / scales
+        q = _quantize_elemwise_core(
             x,
             self.mbits,
             self.ebits,
@@ -140,8 +140,7 @@ class MXQuantizer(nn.Module):
             saturate_normals=True,
             custom_cuda=False,
         )
-        x_q = A * (2**scales) + zeros
-        return x_q
+        return q * scales + zeros
 
     def enable(self):
         self.is_enable = True
@@ -163,21 +162,19 @@ if __name__ == "__main__":
     print(x)
 
     quantizer = MXQuantizer(
-        fmt=ElemFormat.int8,
+        fmt=ElemFormat.int4,
         group_size=6,
         axes=-1,
         asymmetric=False,
         device=device,
         scale_ebits=8,
-        scale_mbits=1,
+        scale_mbits=0,
     )
     # quantizer = MXQuantizer(
     #     fmt=ElemFormat.fp8_e4m3, group_size=32, axes=-1, asymmetric=False, device=device,
     #     scale_ebits=8, scale_mbits = 1,
     # )
     print(quantizer)
-    scales, zeros = quantizer.find_params(x)
-    # print(scales, zeros, scales.shape)
-    x_dq = quantizer(x, scales=scales, zeros=zeros)
+    x_dq = quantizer(x)
     print(x_dq)
     print(((x - x_dq) ** 2).mean())

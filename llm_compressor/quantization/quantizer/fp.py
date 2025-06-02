@@ -175,24 +175,29 @@ if __name__ == "__main__":
     torch.manual_seed(0)
 
     device = torch.device("cuda")
-    x = torch.randn(4, 6).to(device=device)
+    x = torch.randn(4, 8, 6).to(device=device)
     print(x)
 
-    quantizer = FPQuantizer(
-        fmt=ElemFormat.fp8_e4m3,
-        group_size=(4, 6),
-        axes=-1,
-        asymmetric=False,
-        device=device,
-    )
     # quantizer = FPQuantizer(
-    #     fmt=ElemFormat.fp4_e2m1,
-    #     group_size=-1,
+    #     fmt=ElemFormat.fp8_e4m3,
+    #     group_size=(2, 6),
     #     axes=-1,
-    #     asymmetric=True,
+    #     asymmetric=False,
     #     device=device,
     # )
-    print(quantizer)
-    x_dq = quantizer(x)
-    print(x_dq)
+    quantizer = FPQuantizer(
+        fmt=ElemFormat.fp4_e2m1,
+        group_size=-1,
+        axes=-1,
+        asymmetric=True,
+        device=device,
+    )
+    # print(quantizer)
+    # x_dq = quantizer(x)
+    # print(x_dq)
+    # print(((x - x_dq) ** 2).mean())
+
+    scales, zeros = quantizer.find_params(x)
+    # print(scales, zeros, scales.shape)
+    x_dq = quantizer(x, scales=scales, zeros=zeros)
     print(((x - x_dq) ** 2).mean())
