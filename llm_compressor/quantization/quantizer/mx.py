@@ -3,23 +3,32 @@ import torch.nn as nn
 
 if __package__:
     from .formats import ElemFormat, _get_format_params
-    from .utils import _reshape_to_blocks, _undo_reshape_to_blocks, _shared_exponents, _quantize_elemwise_core
+    from .utils import (
+        _reshape_to_blocks,
+        _undo_reshape_to_blocks,
+        _shared_exponents,
+        _quantize_elemwise_core,
+    )
 else:
     from formats import ElemFormat, _get_format_params
-    from utils import _reshape_to_blocks, _undo_reshape_to_blocks, _shared_exponents, _quantize_elemwise_core
-
+    from utils import (
+        _reshape_to_blocks,
+        _undo_reshape_to_blocks,
+        _shared_exponents,
+        _quantize_elemwise_core,
+    )
 
 
 class MXQuantizer(nn.Module):
-
     def __init__(
-            self, 
-            fmt: ElemFormat,
-            group_size=32,
-            axes = -1,
-            asymmetric=False,
-            device=torch.device('cpu'),
-            **kwargs):
+        self,
+        fmt: ElemFormat,
+        group_size=32,
+        axes=-1,
+        asymmetric=False,
+        device=torch.device("cpu"),
+        **kwargs,
+    ):
         """
         group_size:
             - 32: per-group quant.
@@ -29,22 +38,26 @@ class MXQuantizer(nn.Module):
         """
         super().__init__()
 
-        assert fmt in (ElemFormat.int4, ElemFormat.int8,
-                       ElemFormat.fp4_e2m1, ElemFormat.fp8_e4m3, ElemFormat.fp8_e5m2), \
-            f"Not support Format for {self.__class__.__name__}"
-        
+        assert fmt in (
+            ElemFormat.int4,
+            ElemFormat.int8,
+            ElemFormat.fp4_e2m1,
+            ElemFormat.fp8_e4m3,
+            ElemFormat.fp8_e5m2,
+        ), f"Not support Format for {self.__class__.__name__}"
+
         ebits, mbits, emax, max_norm, min_norm = _get_format_params(fmt)
         self.ebits = torch.tensor(ebits).to(device)
         self.mbits = torch.tensor(mbits).to(device)
         self.emax = torch.tensor(emax).to(device)
         self.max_norm = torch.tensor(max_norm).to(device)
         self.min_norm = torch.tensor(min_norm).to(device)
-        self.scale_ebits = kwargs.pop('scale_ebits', 8)
-        self.scale_mbits = kwargs.pop('scale_mbits', 1)
+        self.scale_ebits = kwargs.pop("scale_ebits", 8)
+        self.scale_mbits = kwargs.pop("scale_mbits", 1)
         self.str_fmt = str(fmt)
         self.configure(asymmetric=asymmetric, group_size=group_size, axes=axes)
         self.enable()
-    
+
     def configure(self, asymmetric, group_size, axes):
         self.asymmetric = asymmetric
         self.group_size = group_size
@@ -53,7 +66,9 @@ class MXQuantizer(nn.Module):
     def find_params(self, x, already_reshaped=False):
         if not already_reshaped:
             x, self.axes, *_ = _reshape_to_blocks(
-                x, block_size=self.group_size, axes=self.axes,
+                x,
+                block_size=self.group_size,
+                axes=self.axes,
             )
 
         if self.asymmetric:
@@ -67,19 +82,22 @@ class MXQuantizer(nn.Module):
 
         # Get shared exponents & shared mantissas(NanoMantissa from Nanoscaling FP:NxFP)
         shared_exp, shared_mts = _shared_exponents(
-            (x - zeros), method="max", axes=shared_exp_axes, mbits=self.scale_mbits,
+            (x - zeros),
+            method="max",
+            axes=shared_exp_axes,
+            mbits=self.scale_mbits,
         )
-        
+
         # Offset the max exponent by the largest representable exponent
         # in the element data format
         shared_exp = shared_exp - self.emax
 
         # Restrict to [-emax, emax] range
-        scale_emax = 2**(self.scale_ebits-1) - 1
+        scale_emax = 2 ** (self.scale_ebits - 1) - 1
         shared_exp[shared_exp > scale_emax] = scale_emax + 1
         shared_exp[shared_exp < -scale_emax] = -scale_emax
-        
-        scales = (2 ** shared_exp) * shared_mts
+
+        scales = (2**shared_exp) * shared_mts
         assert torch.isnan(scales).sum() == 0
         print(scales)
         return scales, zeros
@@ -90,7 +108,9 @@ class MXQuantizer(nn.Module):
 
         if self.is_enable:
             x, *meta = _reshape_to_blocks(
-                x, block_size=self.group_size, axes=self.axes,
+                x,
+                block_size=self.group_size,
+                axes=self.axes,
             )
 
             if (scales is not None) & (zeros is not None):
@@ -99,24 +119,33 @@ class MXQuantizer(nn.Module):
                 scales, zeros = self.find_params(x, already_reshaped=True)
                 x_dq = self.quantize(x, scales=scales, zeros=zeros)
 
-            return _undo_reshape_to_blocks(x_dq, 
-                                            padded_shape=meta[-2], 
-                                            orig_shape=meta[1], 
-                                            axes=meta[0], 
-                                            block_size=meta[-1])
+            return _undo_reshape_to_blocks(
+                x_dq,
+                padded_shape=meta[-2],
+                orig_shape=meta[1],
+                axes=meta[0],
+                block_size=meta[-1],
+            )
         return x
-    
+
     def quantize(self, x, scales, zeros):
-        x = (x - zeros) / (2 ** scales)
+        x = (x - zeros) / (2**scales)
         A = _quantize_elemwise_core(
-                x, self.mbits, self.ebits, self.max_norm, round="nearest",
-                allow_denorm=True, saturate_normals=True, custom_cuda=False)
-        x_q = A * (2 ** scales) + zeros
+            x,
+            self.mbits,
+            self.ebits,
+            self.max_norm,
+            round="nearest",
+            allow_denorm=True,
+            saturate_normals=True,
+            custom_cuda=False,
+        )
+        x_q = A * (2**scales) + zeros
         return x_q
 
     def enable(self):
         self.is_enable = True
-    
+
     def disable(self):
         self.is_enable = False
 
@@ -124,7 +153,7 @@ class MXQuantizer(nn.Module):
         s = f"Format: {self.str_fmt.split('.')[-1].upper()}, "
         s += f"Max: {self.max_norm}, Min: {self.min_norm}"
         return s
-    
+
 
 if __name__ == "__main__":
     torch.manual_seed(0)
@@ -134,16 +163,21 @@ if __name__ == "__main__":
     print(x)
 
     quantizer = MXQuantizer(
-        fmt=ElemFormat.int8, group_size=6, axes=-1, asymmetric=False, device=device,
-        scale_ebits=8, scale_mbits = 1,
+        fmt=ElemFormat.int8,
+        group_size=6,
+        axes=-1,
+        asymmetric=False,
+        device=device,
+        scale_ebits=8,
+        scale_mbits=1,
     )
     # quantizer = MXQuantizer(
     #     fmt=ElemFormat.fp8_e4m3, group_size=32, axes=-1, asymmetric=False, device=device,
-    #     scale_ebits=8, scale_mbits = 1,  
+    #     scale_ebits=8, scale_mbits = 1,
     # )
     print(quantizer)
     scales, zeros = quantizer.find_params(x)
     # print(scales, zeros, scales.shape)
     x_dq = quantizer(x, scales=scales, zeros=zeros)
     print(x_dq)
-    print(((x-x_dq)**2).mean())
+    print(((x - x_dq) ** 2).mean())

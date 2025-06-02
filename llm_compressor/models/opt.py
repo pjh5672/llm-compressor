@@ -1,5 +1,5 @@
 from .base import CompressBaseForCausalLM
-from transformers.models.opt.modeling_opt import OPTForCausalLM, OPTDecoderLayer
+from transformers.models.opt.modeling_opt import OPTForCausalLM
 
 
 class CompressOptForCausalLM(CompressBaseForCausalLM):

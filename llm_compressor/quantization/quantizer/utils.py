@@ -7,11 +7,11 @@ from formats import FP32_MIN_NORMAL, _get_min_norm
 def tile_matrix(x, block_size):
     orig_shape = x.shape
     *p, h, w = orig_shape
-    
+
     pad_bottom = (block_size[0] - h % block_size[0]) % block_size[0]
     pad_right = (block_size[1] - w % block_size[1]) % block_size[1]
 
-    padded_x = F.pad(x, (0, pad_right, 0, pad_bottom), mode='constant', value=0)
+    padded_x = F.pad(x, (0, pad_right, 0, pad_bottom), mode="constant", value=0)
     *p, new_h, new_w = padded_x.shape
 
     num_tiles_h = new_h // block_size[0]
@@ -21,7 +21,7 @@ def tile_matrix(x, block_size):
 
     if x.dim() == 2:
         tiles = tiles.permute(0, 2, 1, 3)
-        
+
     elif x.dim() == 3:
         tiles = tiles.permute(0, 1, 3, 2, 4)
 
@@ -34,22 +34,24 @@ def tile_matrix(x, block_size):
 
 def untile_matrix(x, block_size, padded_shape, orig_shape):
     *p, h, w = padded_shape
-    
+
     num_tiles_h = h // block_size[0]
     num_tiles_w = w // block_size[1]
 
     if x.dim() == 2:
         tiles = x.reshape(*p, num_tiles_h, num_tiles_w, block_size[0], block_size[1])
         tiles = tiles.permute(0, 2, 1, 3)
-        
+
     elif x.dim() == 3:
         tiles = x.reshape(*p, num_tiles_h, num_tiles_w, block_size[0], block_size[1])
         tiles = tiles.permute(0, 1, 3, 2, 4)
 
     elif x.dim() == 4:
-        tiles = x.reshape(p[0], num_tiles_h, num_tiles_w, p[1], block_size[0], block_size[1])
+        tiles = x.reshape(
+            p[0], num_tiles_h, num_tiles_w, p[1], block_size[0], block_size[1]
+        )
         tiles = tiles.permute(0, 3, 1, 4, 2, 5)
-    
+
     tiles = tiles.reshape(*p, num_tiles_h * block_size[0], num_tiles_w * block_size[1])
 
     pad_bottom = padded_shape[0] - orig_shape[0]
@@ -70,7 +72,7 @@ def _reshape_to_blocks(A, block_size, axes=None):
             return A, None, orig_shape, padded_shape, block_size
         else:
             raise Exception("block_size must be 2d-list or 2d-tuple")
-    
+
     if axes is None:
         raise Exception(
             "axes required in order to determine which dimension toapply block size to"
@@ -133,7 +135,7 @@ def _reshape_to_blocks(A, block_size, axes=None):
 
 
 def _undo_reshape_to_blocks(A, padded_shape, orig_shape, axes, **kwargs):
-    if block_size := kwargs.pop('block_size', False):
+    if block_size := kwargs.pop("block_size", False):
         return untile_matrix(A, block_size, padded_shape, orig_shape)
 
     # Undo tile reshaping
@@ -175,21 +177,23 @@ def _shared_exponents(A, method="max", axes=None, mbits=0):
         raise Exception("Unrecognized shared exponent selection method %s" % (method))
 
     shared_mts = torch.log2(
-            shared_exp + FP32_MIN_NORMAL * (shared_exp == 0).type(shared_exp.dtype)
-        )
+        shared_exp + FP32_MIN_NORMAL * (shared_exp == 0).type(shared_exp.dtype)
+    )
     # log2(shared_exp) and truncate to integer
     shared_exp = torch.floor(
         torch.log2(
             shared_exp + FP32_MIN_NORMAL * (shared_exp == 0).type(shared_exp.dtype)
         )
     )
-    
+
     if mbits > 0:
-        shared_mts = 2**(shared_mts - shared_exp)
+        shared_mts = 2 ** (shared_mts - shared_exp)
         shared_mts = _safe_lshift(shared_mts, mbits, None)
         shared_mts = _round_mantissa(shared_mts, mbits, "nearest", clamp=False)
         shared_mts = _safe_rshift(shared_mts, mbits, None)
-        shared_mts = torch.clamp(shared_mts, min=1.0, max=1+((2**mbits)-1) / (2**mbits))
+        shared_mts = torch.clamp(
+            shared_mts, min=1.0, max=1 + ((2**mbits) - 1) / (2**mbits)
+        )
     else:
         shared_mts = torch.tensor(1.0)
     return shared_exp, shared_mts
@@ -199,14 +203,14 @@ def _safe_lshift(x, bits, exp):
     if exp is None:
         return x * (2**bits)
     else:
-        return x / (2 ** exp) * (2**bits)
+        return x / (2**exp) * (2**bits)
 
 
 def _safe_rshift(x, bits, exp):
     if exp is None:
         return x / (2**bits)
     else:
-        return x / (2**bits) * (2 ** exp)
+        return x / (2**bits) * (2**exp)
 
 
 def _round_mantissa(A, bits, round, clamp=False):
@@ -243,10 +247,17 @@ def _round_mantissa(A, bits, round, clamp=False):
     return A
 
 
-def _quantize_elemwise_core(A, bits, exp_bits, max_norm, round='nearest',
-                            saturate_normals=False, allow_denorm=True,
-                            custom_cuda=False):
-    """ Core function used for element-wise quantization
+def _quantize_elemwise_core(
+    A,
+    bits,
+    exp_bits,
+    max_norm,
+    round="nearest",
+    saturate_normals=False,
+    allow_denorm=True,
+    custom_cuda=False,
+):
+    """Core function used for element-wise quantization
     Arguments:
       A         {PyTorch tensor} -- A tensor to be quantized
       bits      {int}            -- Number of mantissa bits. Includes
@@ -272,11 +283,10 @@ def _quantize_elemwise_core(A, bits, exp_bits, max_norm, round='nearest',
         out = A
 
     if exp_bits != 0:
-        private_exp = torch.floor(torch.log2(
-            torch.abs(A) + (A == 0).type(A.dtype)))
+        private_exp = torch.floor(torch.log2(torch.abs(A) + (A == 0).type(A.dtype)))
 
         # The minimum representable exponent for 8 exp bits is -126
-        min_exp = -(2**(exp_bits-1)) + 2
+        min_exp = -(2 ** (exp_bits - 1)) + 2
         private_exp = private_exp.clip(min=min_exp)
     else:
         private_exp = None
@@ -293,8 +303,9 @@ def _quantize_elemwise_core(A, bits, exp_bits, max_norm, round='nearest',
     if saturate_normals or exp_bits == 0:
         out = torch.clamp(out, min=-max_norm, max=max_norm)
     else:
-        out = torch.where((torch.abs(out) > max_norm),
-                           torch.sign(out) * float("Inf"), out)
+        out = torch.where(
+            (torch.abs(out) > max_norm), torch.sign(out) * float("Inf"), out
+        )
 
     # handle Inf/NaN
     if not custom_cuda:
