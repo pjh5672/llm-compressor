@@ -25,7 +25,7 @@ class MXQuantizer(nn.Module):
         fmt: ElemFormat,
         group_size=32,
         axes=-1,
-        asymmetric=False,
+        zero_point=False,
         device=torch.device("cpu"),
         **kwargs,
     ):
@@ -55,11 +55,11 @@ class MXQuantizer(nn.Module):
         self.scale_ebits = kwargs.pop("scale_ebits", 8)
         self.scale_mbits = kwargs.pop("scale_mbits", 0)
         self.str_fmt = str(fmt)
-        self.configure(asymmetric=asymmetric, group_size=group_size, axes=axes)
+        self.configure(zero_point=zero_point, group_size=group_size, axes=axes)
         self.enable()
 
-    def configure(self, asymmetric, group_size, axes):
-        self.asymmetric = asymmetric
+    def configure(self, zero_point, group_size, axes):
+        self.zero_point = zero_point
         self.group_size = group_size
         self.axes = axes
 
@@ -74,7 +74,7 @@ class MXQuantizer(nn.Module):
         else:
             self.shared_axes = [self.axes + 2]
 
-        if self.asymmetric:
+        if self.zero_point:
             max_val = x.amax(dim=self.axes, keepdim=True)
             min_val = x.amin(dim=self.axes, keepdim=True)
             zeros = (max_val + min_val) / 2
@@ -114,10 +114,10 @@ class MXQuantizer(nn.Module):
             )
 
             if (scales is not None) & (zeros is not None):
-                x_dq = self.quantize(x, scales=scales, zeros=zeros)
+                x_dq = self.fake_quantize(x, scales=scales, zeros=zeros)
             else:
                 scales, zeros = self.find_params(x, already_reshaped=True)
-                x_dq = self.quantize(x, scales=scales, zeros=zeros)
+                x_dq = self.fake_quantize(x, scales=scales, zeros=zeros)
 
             return _undo_reshape_to_blocks(
                 x_dq,
@@ -128,7 +128,7 @@ class MXQuantizer(nn.Module):
             )
         return x
 
-    def quantize(self, x, scales, zeros):
+    def fake_quantize(self, x, scales, zeros):
         x = (x - zeros) / scales
         q = _quantize_elemwise_core(
             x,
@@ -165,13 +165,13 @@ if __name__ == "__main__":
         fmt=ElemFormat.int4,
         group_size=6,
         axes=-1,
-        asymmetric=False,
+        zero_point=False,
         device=device,
         scale_ebits=8,
         scale_mbits=0,
     )
     # quantizer = MXQuantizer(
-    #     fmt=ElemFormat.fp8_e4m3, group_size=32, axes=-1, asymmetric=False, device=device,
+    #     fmt=ElemFormat.fp8_e4m3, group_size=32, axes=-1, zero_point=False, device=device,
     #     scale_ebits=8, scale_mbits = 1,
     # )
     print(quantizer)

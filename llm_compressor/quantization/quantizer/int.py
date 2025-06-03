@@ -2,20 +2,22 @@ import torch
 import torch.nn as nn
 
 if __package__:
+    from .base import BaseQuantizer
     from .formats import ElemFormat, _get_format_params
     from .utils import _reshape_to_blocks, _undo_reshape_to_blocks
 else:
+    from base import BaseQuantizer
     from formats import ElemFormat, _get_format_params
     from utils import _reshape_to_blocks, _undo_reshape_to_blocks
 
 
-class INTQuantizer(nn.Module):
+class INTQuantizer(nn.Module, BaseQuantizer):
     def __init__(
         self,
         fmt: ElemFormat,
         group_size=-1,
         axes=-1,
-        asymmetric=True,
+        zero_point=False,
         device=torch.device("cpu"),
         **kwargs,
     ):
@@ -46,14 +48,14 @@ class INTQuantizer(nn.Module):
         self.q_max = torch.tensor(max_norm * 2 ** (self.q_bits - 2)).to(device=device)
         self.q_min = -self.q_max
         self.str_fmt = str(fmt)
-        self.configure(asymmetric=asymmetric, group_size=group_size, axes=axes)
+        self.configure(zero_point=zero_point, group_size=group_size, axes=axes)
         self.enable()
 
-    def configure(self, asymmetric, group_size, axes):
-        assert (group_size != 1) or not asymmetric, (
+    def configure(self, zero_point, group_size, axes):
+        assert (group_size != 1) or not zero_point, (
             "Asymmetric quant with per-element quant. are exclusive."
         )
-        self.asymmetric = asymmetric
+        self.zero_point = zero_point
         self.group_size = group_size
 
         if self.group_size == -1:
@@ -79,7 +81,7 @@ class INTQuantizer(nn.Module):
             )
 
         if self.group_size != 0:
-            if self.asymmetric:
+            if self.zero_point:
                 max_val = x.amax(dim=self.axes, keepdim=True)
                 min_val = x.amin(dim=self.axes, keepdim=True)
                 scales = (max_val - min_val) / (self.q_max - self.q_min)
@@ -89,7 +91,7 @@ class INTQuantizer(nn.Module):
                 scales = max_val / self.q_max
                 zeros = torch.tensor(0)
         else:
-            if self.asymmetric:
+            if self.zero_point:
                 max_val = x.amax()
                 min_val = x.amin()
                 scales = (max_val - min_val) / (self.q_max - self.q_min)
@@ -120,10 +122,10 @@ class INTQuantizer(nn.Module):
                 )
 
             if (scales is not None) & (zeros is not None):
-                x_dq = self.quantize(x, scales=scales, zeros=zeros)
+                x_dq = self.fake_quantize(x, scales=scales, zeros=zeros)
             else:
                 scales, zeros = self.find_params(x, already_reshaped=True)
-                x_dq = self.quantize(x, scales=scales, zeros=zeros)
+                x_dq = self.fake_quantize(x, scales=scales, zeros=zeros)
 
             if self.group_size != 0:
                 return _undo_reshape_to_blocks(
@@ -136,7 +138,7 @@ class INTQuantizer(nn.Module):
             return x_dq
         return x
 
-    def quantize(self, x, scales, zeros):
+    def fake_quantize(self, x, scales, zeros):
         q = torch.round((x - zeros) / scales)
         q = torch.clamp(q, self.q_min, self.q_max)
         return q * scales + zeros
@@ -161,10 +163,10 @@ if __name__ == "__main__":
     print(x)
 
     quantizer = INTQuantizer(
-        fmt=ElemFormat.int8, group_size=0, axes=-2, asymmetric=False, device=device
+        fmt=ElemFormat.int8, group_size=0, axes=-2, zero_point=False, device=device
     )
     # quantizer = INTQuantizer(
-    #     fmt=ElemFormat.int8, group_size=(6, 4), axes=-1, asymmetric=False, device=device
+    #     fmt=ElemFormat.int8, group_size=(6, 4), axes=-1, zero_point=False, device=device
     # )
     print(quantizer)
     scales, zeros = quantizer.find_params(x)
