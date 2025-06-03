@@ -4,7 +4,6 @@ from typing_extensions import Doc, Annotated
 import torch
 import torch.nn as nn
 from transformers import (
-    AutoConfig,
     PreTrainedModel,
     PretrainedConfig,
     PreTrainedTokenizer,

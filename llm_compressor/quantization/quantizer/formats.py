@@ -14,9 +14,7 @@ class ElemFormat(Enum):
     fp4_e2m1 = 3
     fp8_e4m3 = 4
     fp8_e5m2 = 5
-    fp16 = 6
-    bf16 = 7
-    int32 = 8
+    int32 = 6
 
     @staticmethod
     def from_str(s):
@@ -78,14 +76,6 @@ def _get_format_params(fmt):
 
     elif fmt == ElemFormat.fp8_e5m2:
         ebits, mbits = 5, 4
-        emax = 2 ** (ebits - 1) - 1
-
-    elif fmt == ElemFormat.fp16:
-        ebits, mbits = 5, 12
-        emax = 2 ** (ebits - 1) - 1
-
-    elif fmt == ElemFormat.bf16:
-        ebits, mbits = 8, 9
         emax = 2 ** (ebits - 1) - 1
 
     elif fmt == ElemFormat.int32:
