@@ -149,8 +149,8 @@ class MXQuantizer(nn.Module):
         self.is_enable = False
 
     def extra_repr(self):
-        s = f"Format: {self.str_fmt.split('.')[-1].upper()}, "
-        s += f"Max: {self.max_norm}, Min: {self.min_norm}"
+        s = f"Format: MX{self.str_fmt.split('.')[-1].upper()}, "
+        s += f"Min: {self.min_norm}, Max: {self.max_norm}"
         return s
 
 

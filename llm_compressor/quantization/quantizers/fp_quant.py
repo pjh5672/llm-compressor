@@ -1,17 +1,27 @@
 import torch
-import torch.nn as nn
+from torch import nn
 
 if __package__:
-    from .base import BaseQuantizer
     from .formats import ElemFormat, _get_format_params
-    from .utils import _reshape_to_blocks, _undo_reshape_to_blocks
+    from .utils import (
+        _reshape_to_blocks,
+        _undo_reshape_to_blocks,
+        _safe_lshift,
+        _round_mantissa,
+        _safe_rshift,
+    )
 else:
-    from base import BaseQuantizer
     from formats import ElemFormat, _get_format_params
-    from utils import _reshape_to_blocks, _undo_reshape_to_blocks
+    from utils import (
+        _reshape_to_blocks,
+        _undo_reshape_to_blocks,
+        _safe_lshift,
+        _round_mantissa,
+        _safe_rshift,
+    )
 
 
-class INTQuantizer(nn.Module, BaseQuantizer):
+class FPQuantizer(nn.Module):
     def __init__(
         self,
         fmt: ElemFormat,
@@ -41,12 +51,16 @@ class INTQuantizer(nn.Module, BaseQuantizer):
         """
         super().__init__()
 
-        assert fmt in (ElemFormat.int4, ElemFormat.int8, ElemFormat.int32), (
+        assert fmt in (ElemFormat.fp4_e2m1, ElemFormat.fp8_e4m3, ElemFormat.fp8_e5m2), (
             f"Not support Format for {self.__class__.__name__}"
         )
-        _, self.q_bits, _, max_norm, _ = _get_format_params(fmt)
-        self.q_max = torch.tensor(max_norm * 2 ** (self.q_bits - 2)).to(device=device)
-        self.q_min = -self.q_max
+
+        ebits, mbits, emax, max_norm, min_norm = _get_format_params(fmt)
+        self.ebits = torch.tensor(ebits)
+        self.mbits = torch.tensor(mbits)
+        self.emax = torch.tensor(emax)
+        self.max_norm = torch.tensor(max_norm)
+        self.min_norm = torch.tensor(min_norm)
         self.str_fmt = str(fmt)
         self.configure(zero_point=zero_point, group_size=group_size, axes=axes)
         self.enable()
@@ -84,21 +98,21 @@ class INTQuantizer(nn.Module, BaseQuantizer):
             if self.zero_point:
                 max_val = x.amax(dim=self.axes, keepdim=True)
                 min_val = x.amin(dim=self.axes, keepdim=True)
-                scales = (max_val - min_val) / (self.q_max - self.q_min)
+                scales = (max_val - min_val) / (2 * self.max_norm)
                 zeros = (max_val + min_val) / 2
             else:
                 max_val = x.abs().amax(dim=self.axes, keepdim=True)
-                scales = max_val / self.q_max
+                scales = max_val / self.max_norm
                 zeros = torch.tensor(0)
         else:
             if self.zero_point:
                 max_val = x.amax()
                 min_val = x.amin()
-                scales = (max_val - min_val) / (self.q_max - self.q_min)
+                scales = (max_val - min_val) / (2 * self.max_norm)
                 zeros = (max_val + min_val) / 2
             else:
                 max_val = x.abs().amax()
-                scales = max_val / self.q_max
+                scales = max_val / self.max_norm
                 zeros = torch.tensor(0)
 
         assert torch.isnan(scales).sum() == 0
@@ -139,8 +153,10 @@ class INTQuantizer(nn.Module, BaseQuantizer):
         return x
 
     def fake_quantize(self, x, scales, zeros):
-        q = torch.round((x - zeros) / scales)
-        q = torch.clamp(q, self.q_min, self.q_max)
+        q = (x - zeros) / scales
+        q = _safe_lshift(q, self.mbits - 2, self.emax)
+        q = _round_mantissa(q, self.mbits, round="nearest", clamp=False)
+        q = _safe_rshift(q, self.mbits - 2, self.emax)
         return q * scales + zeros
 
     def enable(self):
@@ -151,7 +167,7 @@ class INTQuantizer(nn.Module, BaseQuantizer):
 
     def extra_repr(self):
         s = f"Format: {self.str_fmt.split('.')[-1].upper()}, "
-        s += f"Max: {self.q_max}, Min: {self.q_min}"
+        s += f"Min: {self.min_norm}, Max: {self.max_norm}"
         return s
 
 
@@ -162,15 +178,26 @@ if __name__ == "__main__":
     x = torch.randn(4, 6).to(device=device)
     print(x)
 
-    quantizer = INTQuantizer(
-        fmt=ElemFormat.int8, group_size=0, axes=-2, zero_point=False, device=device
-    )
-    # quantizer = INTQuantizer(
-    #     fmt=ElemFormat.int8, group_size=(6, 4), axes=-1, zero_point=False, device=device
+    # quantizer = FPQuantizer(
+    #     fmt=ElemFormat.fp8_e4m3,
+    #     group_size=(2, 6),
+    #     axes=-1,
+    #     zero_point=False,
+    #     device=device,
     # )
-    print(quantizer)
+    quantizer = FPQuantizer(
+        fmt=ElemFormat.fp4_e2m1,
+        group_size=-1,
+        axes=-1,
+        zero_point=False,
+        device=device,
+    )
+    # print(quantizer)
+    # x_dq = quantizer(x)
+    # print(x_dq)
+    # print(((x - x_dq) ** 2).mean())
+
     scales, zeros = quantizer.find_params(x)
-    print(scales, zeros, scales.shape)
+    # print(scales, zeros, scales.shape)
     x_dq = quantizer(x, scales=scales, zeros=zeros)
-    print(x_dq)
     print(((x - x_dq) ** 2).mean())

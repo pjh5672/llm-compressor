@@ -1,5 +1,5 @@
-from typing import List
 from enum import Enum
+from typing import List
 
 
 FP32_EXPONENT_BIAS = 127

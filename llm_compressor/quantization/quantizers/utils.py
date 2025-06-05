@@ -1,7 +1,10 @@
 import torch
 import torch.nn.functional as F
 
-from formats import FP32_MIN_NORMAL, _get_min_norm
+if __package__:
+    from .formats import FP32_MIN_NORMAL, _get_min_norm
+else:
+    from formats import FP32_MIN_NORMAL, _get_min_norm
 
 
 def tile_matrix(x, block_size):
