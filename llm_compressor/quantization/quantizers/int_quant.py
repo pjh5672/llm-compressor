@@ -36,8 +36,8 @@ class INTQuantizer(nn.Module, BaseQuantizer):
             - >0: per-group quant.
             - 2d-list or 2d-tuple: 2d-block quant.
         axes:
-            - -1: per-token wise
-            - -2: per-channel wise
+            - -1: row-wise quant.
+            - -2: channel-wise quant.
         """
         super().__init__()
         _, self.q_bits, _, max_norm, _ = _get_format_params(fmt)

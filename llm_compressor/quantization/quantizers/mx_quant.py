@@ -33,8 +33,8 @@ class MXQuantizer(nn.Module):
         group_size:
             - 32: per-group quant.
         axes:
-            - -1: per-token wise
-            - -2: per-channal wise
+            - -1: row-wise quant.
+            - -2: channel-wise quant.
         """
         super().__init__()
 
