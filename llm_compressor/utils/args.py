@@ -102,7 +102,11 @@ def build_parser(root_dir):
 
     parser.add_argument("--save", action="store_true", help="save to quantized model")
 
-    parser.add_argument("--tasks", type=str, default=None, help="Evaluation tasks")
+    parser.add_argument("--tasks", type=str, default="ppl", help="Evaluation tasks")
+
+    parser.add_argument(
+        "--seq-len", type=int, default=2048, help="Sequence length for PPL evaluation"
+    )
 
     parser.add_argument(
         "--batch-size", type=int, default=8, help="Evaluation batch size"

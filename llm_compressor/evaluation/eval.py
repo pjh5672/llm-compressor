@@ -18,6 +18,22 @@ class LMEvaluator:
         self.device = device
         self.n_samples = n_samples
 
+    def eval(self, model, tasks, **kwargs):
+        results = {}
+        tasks = tasks.split(",")
+        if "ppl" in tasks:
+            datasets = ["wikitext2", "ptb", "c4"]
+            tokenizer_path = kwargs.get("tokenizer_path")
+            seq_len = kwargs.get("seq_len", 2048)
+            ppl = self.eval_ppl(model=model, tokenizer_path=tokenizer_path, datasets=datasets, seq_len=seq_len)
+            results.update(ppl)
+            tasks.remove("ppl")
+
+        batch_size = kwargs.get("batch_size", 1)
+        acc = self.eval_QA(model=model, tasks=tasks, batch_size=batch_size)
+        results.update(acc)
+        return results
+            
     def eval_ppl(self, model, tokenizer_path, datasets, seq_len):
         model.eval()
         ppl = {}
@@ -55,11 +71,11 @@ class LMEvaluator:
         for task in tasks:
             acc = self.compute_zeroshot(model=model, task=task, batch_size=batch_size)
             if task == "lambada":
-                results[task] = acc["results"]["lambada_openai"]["acc,none"]
+                results[task] = acc["results"]["lambada_openai"]["acc,none"] * 100
             elif task == "truthfulqa":
-                results[task] = acc["results"]["truthfulqa_mc1"]["acc,none"]
+                results[task] = acc["results"]["truthfulqa_mc1"]["acc,none"] * 100
             else:
-                results[task] = acc["results"][f"{task}"]["acc,none"]
+                results[task] = acc["results"][f"{task}"]["acc,none"] * 100
         return results
 
     @torch.no_grad()
@@ -115,21 +131,24 @@ if __name__ == "__main__":
         torch_dtype=torch.float16,
         device_map="auto",
     )
-    lm_evaluator = LMEvaluator(device=model.device, n_samples=10)
-    ppl_tasks = ["wikitext2", "ptb", "c4"]
-    results = lm_evaluator.eval_ppl(
-        model=model, tokenizer_path=model_path, datasets=ppl_tasks, seq_len=2024
-    )
-    qa_tasks = [
-        "lambada",
-        "hellaswag",
-        "winogrande",
-        "piqa",
-        "truthfulqa",
-        "openbookqa",
-        "boolq",
-        "arc_easy",
-        "arc_challenge",
-    ]
-    results.update(lm_evaluator.eval_QA(model=model, tasks=qa_tasks, batch_size=8))
+    lm_evaluator = LMEvaluator(device=model.device, n_samples=40)
+    # ppl_tasks = ["wikitext2", "ptb", "c4"]
+    # results = lm_evaluator.eval_ppl(
+    #     model=model, tokenizer_path=model_path, datasets=ppl_tasks, seq_len=2024
+    # )
+    # qa_tasks = [
+    #     "lambada",
+    #     "hellaswag",
+    #     "winogrande",
+    #     "piqa",
+    #     "truthfulqa",
+    #     "openbookqa",
+    #     "boolq",
+    #     "arc_easy",
+    #     "arc_challenge",
+    # ]
+    # results.update(lm_evaluator.eval_QA(model=model, tasks=qa_tasks, batch_size=8))
+    # print(results)
+    kwargs = {"tokenizer_path":model_path, "seq_len": 2048, "batch_size": 8}
+    results = lm_evaluator.eval(model, tasks="ppl,boolq,arc_easy", **kwargs)
     print(results)

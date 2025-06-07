@@ -51,7 +51,7 @@ def main(args):
 
     print(f"Quantized model '{args.quant_name}' saved successfully.")
     """
-    
+
     config = AutoConfig.from_pretrained(args.model)
     model = AutoModelForCausalLM.from_pretrained(
         args.model,
@@ -67,24 +67,8 @@ def main(args):
     LOGGER.info(f"Evaluating compressed model from {args.model.split(os.sep)[-1]}")
 
     evaluator = LMEvaluator(device=device, n_samples=128)
-    ppl_tasks = ["wikitext2", "ptb", "c4"]
-    results = evaluator.eval_ppl(
-        model=model, tokenizer_path=args.model, datasets=ppl_tasks, seq_len=2024
-    )
-    qa_tasks = [
-        "lambada",
-        "hellaswag",
-        "winogrande",
-        "piqa",
-        "truthfulqa",
-        "openbookqa",
-        "boolq",
-        "arc_easy",
-        "arc_challenge",
-    ]
-    results.update(
-        evaluator.eval_QA(model=model, tasks=qa_tasks, batch_size=args.batch_size)
-    )
+    eval_kwargs = {"tokenizer_path":args.model, "seq_len": args.seq_len, "batch_size": args.batch_size}
+    results = evaluator.eval(model, tasks=args.tasks, **eval_kwargs)
     print_eval(results, logger=LOGGER)
 
 

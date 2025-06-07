@@ -111,7 +111,7 @@ def print_eval(result, logger=None):
     s += "=====" * 2 + " Evaluation Results " + "=====" * 2
     s += "\n"
     for k, v in result.items():
-        s += f"{k.upper():>20s}{v:>19g}\n"
+        s += f"{k.upper():>20s}{v:>20g}\n"
     s += "=====" * 8
     if logger is not None:
         logger.info(s)
