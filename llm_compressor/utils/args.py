@@ -108,6 +108,10 @@ def build_parser(root_dir):
         "--batch-size", type=int, default=8, help="Evaluation batch size"
     )
 
+    parser.add_argument(
+        "--device", default="0", help="cuda devices, i.e. 0 or 0,1,2,3 or cpu"
+    )
+
     parser.add_argument("--seed", type=int, default=15, help="Inference seed")
 
     args = parser.parse_args()

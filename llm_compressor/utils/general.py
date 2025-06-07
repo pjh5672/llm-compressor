@@ -1,4 +1,5 @@
 import os
+import sys
 import random
 import inspect
 from pathlib import Path
@@ -8,10 +9,15 @@ import torch
 import numpy as np
 from loguru import logger
 
-ROOT = Path(__file__).resolve().parents[1]
+logger.remove()
+logger.add(
+    sys.stderr,
+    format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | {message}",
+    level="INFO",
+)
 LOGGER = logger
 PROJECT_NAME = "LLM-Compression"
-TQDM_BAR_FORMAT = "{l_bar}{bar:12}{r_bar}"
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def init_seeds(seed=0, deterministic=False):
@@ -40,7 +46,9 @@ def seed_worker(worker_id):
     random.seed(worker_seed)
 
 
-def print_args(args=None, show_file=True, include_keys=(), exclude_keys=()):
+def print_args(
+    args=None, show_file=True, include_keys=(), exclude_keys=(), logger=None
+):
     # Print function arguments (optional args dict)
     x = inspect.currentframe().f_back  # previous frame
     file, *_ = inspect.getframeinfo(x)
@@ -57,13 +65,16 @@ def print_args(args=None, show_file=True, include_keys=(), exclude_keys=()):
         s += ", ".join(
             f"{k}={v}" for k, v in args.__dict__.items() if k not in exclude_keys
         )
-    print(s)
+    if logger is not None:
+        logger.info(s)
+    else:
+        print(s)
 
 
 def file_date(path=__file__):
     # Return human-readable file modification date, i.e. '2021-3-26'
     t = datetime.fromtimestamp(Path(path).stat().st_mtime)
-    return f"{t.year}-{t.month}-{t.day}"
+    return f"{t.year:04}-{t.month:02}-{t.day:02}"
 
 
 def colorstr(*input):
@@ -93,3 +104,16 @@ def colorstr(*input):
         "underline": "\033[4m",
     }
     return "".join(colors[x] for x in args) + f"{string}" + colors["end"]
+
+
+def print_eval(result, logger=None):
+    s = "\n"
+    s += "=====" * 2 + " Evaluation Results " + "=====" * 2
+    s += "\n"
+    for k, v in result.items():
+        s += f"{k.upper():>20s}{v:>19g}\n"
+    s += "=====" * 8
+    if logger is not None:
+        logger.info(s)
+    else:
+        print(s)

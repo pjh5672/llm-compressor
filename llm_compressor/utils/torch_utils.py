@@ -3,8 +3,7 @@ import platform
 
 import torch
 
-from utils.general import LOGGER, PROJECT_NAME, file_date
-from utils import colorstr
+from utils.general import LOGGER, PROJECT_NAME, file_date, colorstr
 
 
 def select_device(device="", batch_size=0, newline=True):
