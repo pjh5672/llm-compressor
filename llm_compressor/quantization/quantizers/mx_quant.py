@@ -22,7 +22,7 @@ else:
 class MXQuantizer(nn.Module):
     def __init__(
         self,
-        fmt: ElemFormat,
+        format: ElemFormat,
         group_size=32,
         axes=-1,
         zero_point=False,
@@ -34,11 +34,11 @@ class MXQuantizer(nn.Module):
             - 32: per-group quant.
         axes:
             - -1: row-wise quant.
-            - -2: channel-wise quant.
+            - -2: column-wise quant.
         """
         super().__init__()
 
-        assert fmt in (
+        assert format in (
             ElemFormat.int4,
             ElemFormat.int8,
             ElemFormat.fp4_e2m1,
@@ -46,7 +46,7 @@ class MXQuantizer(nn.Module):
             ElemFormat.fp8_e5m2,
         ), f"Not support Format for {self.__class__.__name__}"
 
-        ebits, mbits, emax, max_norm, min_norm = _get_format_params(fmt)
+        ebits, mbits, emax, max_norm, min_norm = _get_format_params(format)
         self.ebits = torch.tensor(ebits).to(device)
         self.mbits = torch.tensor(mbits).to(device)
         self.emax = torch.tensor(emax).to(device)
@@ -54,7 +54,7 @@ class MXQuantizer(nn.Module):
         self.min_norm = torch.tensor(min_norm).to(device)
         self.scale_ebits = kwargs.pop("scale_ebits", 8)
         self.scale_mbits = kwargs.pop("scale_mbits", 0)
-        self.str_fmt = str(fmt)
+        self.str_format = str(format)
         self.configure(zero_point=zero_point, group_size=group_size, axes=axes)
         self.enable()
 
@@ -149,8 +149,8 @@ class MXQuantizer(nn.Module):
         self.is_enable = False
 
     def extra_repr(self):
-        s = f"Format: MX{self.str_fmt.split('.')[-1].upper()}, "
-        s += f"Min: {self.min_norm}, Max: {self.max_norm}"
+        s = f"Format: MX{self.str_format.split('.')[-1].upper()}, "
+        s += f"Min: {-self.max_norm}, Max: {self.max_norm}"
         return s
 
 
@@ -162,7 +162,7 @@ if __name__ == "__main__":
     print(x)
 
     quantizer = MXQuantizer(
-        fmt=ElemFormat.int4,
+        format=ElemFormat.int4,
         group_size=6,
         axes=-1,
         zero_point=False,
@@ -171,7 +171,7 @@ if __name__ == "__main__":
         scale_mbits=0,
     )
     # quantizer = MXQuantizer(
-    #     fmt=ElemFormat.fp8_e4m3, group_size=32, axes=-1, zero_point=False, device=device,
+    #     format=ElemFormat.fp8_e4m3, group_size=32, axes=-1, zero_point=False, device=device,
     #     scale_ebits=8, scale_mbits = 1,
     # )
     print(quantizer)

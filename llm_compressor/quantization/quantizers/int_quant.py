@@ -14,7 +14,7 @@ else:
 class INTQuantizer(nn.Module, BaseQuantizer):
     def __init__(
         self,
-        fmt: ElemFormat,
+        format: ElemFormat,
         group_size=-1,
         axes=-1,
         zero_point=False,
@@ -37,17 +37,17 @@ class INTQuantizer(nn.Module, BaseQuantizer):
             - 2d-list or 2d-tuple: 2d-block quant.
         axes:
             - -1: row-wise quant.
-            - -2: channel-wise quant.
+            - -2: column-wise quant.
         """
         super().__init__()
-        _, self.q_bits, _, max_norm, _ = _get_format_params(fmt)
-        assert fmt in (ElemFormat.int4, ElemFormat.int8, ElemFormat.int32), (
+        _, self.q_bits, _, max_norm, _ = _get_format_params(format)
+        assert format in (ElemFormat.int4, ElemFormat.int8, ElemFormat.int32), (
             f"Not support Format for {self.__class__.__name__}"
         )
-        _, self.q_bits, _, max_norm, _ = _get_format_params(fmt)
+        _, self.q_bits, _, max_norm, _ = _get_format_params(format)
         self.q_max = torch.tensor(max_norm * 2 ** (self.q_bits - 2)).to(device=device)
         self.q_min = -self.q_max
-        self.str_fmt = str(fmt)
+        self.str_format = str(format)
         self.configure(zero_point=zero_point, group_size=group_size, axes=axes)
         self.enable()
 
@@ -150,7 +150,7 @@ class INTQuantizer(nn.Module, BaseQuantizer):
         self.is_enable = False
 
     def extra_repr(self):
-        s = f"Format: {self.str_fmt.split('.')[-1].upper()}, "
+        s = f"Format: {self.str_format.split('.')[-1].upper()}, "
         s += f"Min: {self.q_min}, Max: {self.q_max}"
         return s
 
@@ -163,10 +163,10 @@ if __name__ == "__main__":
     print(x)
 
     quantizer = INTQuantizer(
-        fmt=ElemFormat.int8, group_size=0, axes=-2, zero_point=False, device=device
+        format=ElemFormat.int8, group_size=0, axes=-2, zero_point=False, device=device
     )
     # quantizer = INTQuantizer(
-    #     fmt=ElemFormat.int8, group_size=(6, 4), axes=-1, zero_point=False, device=device
+    #     format=ElemFormat.int8, group_size=(6, 4), axes=-1, zero_point=False, device=device
     # )
     print(quantizer)
     scales, zeros = quantizer.find_params(x)

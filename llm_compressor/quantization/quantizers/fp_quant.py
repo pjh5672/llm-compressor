@@ -24,7 +24,7 @@ else:
 class FPQuantizer(nn.Module):
     def __init__(
         self,
-        fmt: ElemFormat,
+        format: ElemFormat,
         group_size=-1,
         axes=-1,
         zero_point=False,
@@ -47,21 +47,23 @@ class FPQuantizer(nn.Module):
             - 2d-list or 2d-tuple: 2d-block quant.
         axes:
             - -1: row-wise quant.
-            - -2: channel-wise quant.
+            - -2: column-wise quant.
         """
         super().__init__()
 
-        assert fmt in (ElemFormat.fp4_e2m1, ElemFormat.fp8_e4m3, ElemFormat.fp8_e5m2), (
-            f"Not support Format for {self.__class__.__name__}"
-        )
+        assert format in (
+            ElemFormat.fp4_e2m1,
+            ElemFormat.fp8_e4m3,
+            ElemFormat.fp8_e5m2,
+        ), f"Not support Format for {self.__class__.__name__}"
 
-        ebits, mbits, emax, max_norm, min_norm = _get_format_params(fmt)
+        ebits, mbits, emax, max_norm, min_norm = _get_format_params(format)
         self.ebits = torch.tensor(ebits)
         self.mbits = torch.tensor(mbits)
         self.emax = torch.tensor(emax)
         self.max_norm = torch.tensor(max_norm)
         self.min_norm = torch.tensor(min_norm)
-        self.str_fmt = str(fmt)
+        self.str_format = str(format)
         self.configure(zero_point=zero_point, group_size=group_size, axes=axes)
         self.enable()
 
@@ -166,8 +168,8 @@ class FPQuantizer(nn.Module):
         self.is_enable = False
 
     def extra_repr(self):
-        s = f"Format: {self.str_fmt.split('.')[-1].upper()}, "
-        s += f"Min: {self.min_norm}, Max: {self.max_norm}"
+        s = f"Format: {self.str_format.split('.')[-1].upper()}, "
+        s += f"Min: {-self.max_norm}, Max: {self.max_norm}"
         return s
 
 
@@ -179,14 +181,14 @@ if __name__ == "__main__":
     print(x)
 
     # quantizer = FPQuantizer(
-    #     fmt=ElemFormat.fp8_e4m3,
+    #     format=ElemFormat.fp8_e4m3,
     #     group_size=(2, 6),
     #     axes=-1,
     #     zero_point=False,
     #     device=device,
     # )
     quantizer = FPQuantizer(
-        fmt=ElemFormat.fp4_e2m1,
+        format=ElemFormat.fp4_e2m1,
         group_size=-1,
         axes=-1,
         zero_point=False,

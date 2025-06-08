@@ -3,32 +3,42 @@ import re
 import argparse
 
 
-class QConfigParser:
+class BitConfigParser:
     def __init__(self):
-        self.q_config = argparse.Namespace()
+        self.bit_config = argparse.Namespace()
         self.linear = {}
         self.matmul = {}
 
     def build_cfg(self, weight, act_in, act_out):
         self.get_linear(weight, act_in, act_out)
         self.get_matmul(act_in, act_out)
-        return self.q_config
+        return self.bit_config
 
     def get_linear(self, weight, act_in, act_out):
-        self.linear["weight"] = self.parse_qconfig(weight)
-        self.linear["act_in"] = self.parse_qconfig(act_in)
-        self.linear["act_out"] = self.parse_qconfig(act_out)
-        self.q_config.linear = self.linear
+        self.linear["weight"] = self.parse_bitconfig(weight)
+        self.linear["act_in"] = self.parse_bitconfig(act_in)
+        self.linear["act_out"] = self.parse_bitconfig(act_out)
+        self.bit_config.linear = self.linear
 
     def get_matmul(self, act_in, act_out):
-        self.matmul["act_in"] = self.parse_qconfig(act_in)
-        self.matmul["act_out"] = self.parse_qconfig(act_out)
-        self.q_config.matmul = self.matmul
+        self.matmul["act_in"] = self.parse_bitconfig(act_in)
+        self.matmul["act_out"] = self.parse_bitconfig(act_out)
+        self.bit_config.matmul = self.matmul
 
-    def parse_qconfig(self, s):
+    def define_qtype(self, fmt):
+        if "mx" in fmt:
+            return "mx"
+        elif "fp" in fmt:
+            return "fp"
+        elif "int" in fmt:
+            return "int"
+        else:
+            raise RuntimeError(f"Invalid format, got {fmt}.")
+
+    def parse_bitconfig(self, s):
         config = {}
         pattern = (
-            r"(?P<type>[^-]+)"
+            r"(?P<format>[^-]+)"
             r"-(?P<group>g\[-?\d+(?:,\d+)*\]+)"
             r"-(?:(?P<zp>zp)-)?"
             r"(?P<wise>rw|cw)$"
@@ -36,8 +46,9 @@ class QConfigParser:
         m = re.match(pattern, s)
         if m:
             result = m.groupdict()
-            config["type"] = result["type"]
-            config["group"] = self.parse_group_values(result["group"])
+            config["type"] = self.define_qtype(result["format"])
+            config["format"] = result["format"].replace("mx", "")
+            config["group_size"] = self.parse_group_values(result["group"])
             config["axes"] = -1 if result["wise"] == "rw" else -2
             config["zero_point"] = result["zp"] == "zp"
             return config
@@ -105,7 +116,10 @@ def build_parser(root_dir):
     parser.add_argument("--tasks", type=str, default="ppl", help="Evaluation tasks")
 
     parser.add_argument(
-        "--seq-len", type=int, default=2048, help="Sequence length for PPL evaluation"
+        "--seq-len",
+        type=int,
+        default=2048,
+        help="Sequence length for calibration and evaluation",
     )
 
     parser.add_argument(
@@ -126,8 +140,8 @@ def build_parser(root_dir):
     if args.save_dir:
         os.makedirs(args.save_dir, exist_ok=True)
 
-    parser = QConfigParser()
-    args.q_config = parser.build_cfg(args.weight, args.act_in, args.act_out)
+    parser = BitConfigParser()
+    args.bit_config = parser.build_cfg(args.weight, args.act_in, args.act_out)
     return args
 
 
@@ -135,6 +149,5 @@ if __name__ == "__main__":
     from pathlib import Path
 
     ROOT = Path(__file__).resolve().parents[1]
-
     args = build_parser(root_dir=ROOT)
     print(args)
