@@ -28,7 +28,6 @@ class QMatmul(nn.Module):
         # Act. Matmul takes place on Q@K.T & S@V in Attention, for KVQuant
         self.bit_config = bit_config
         self.input1_quantizer = FakeQuantizer.build(**self.bit_config.act_in)
-
         self.bit_config.act_in2 = deepcopy(self.bit_config.act_in)
         self.bit_config.act_in2["axes"] = axes
         # row-wise setup
@@ -38,7 +37,6 @@ class QMatmul(nn.Module):
         if (axes == -2) and (self.bit_config.act_in["group_size"] == -1):
             self.bit_config.act_in2["group_size"] = -2
         self.input2_quantizer = FakeQuantizer.build(**self.bit_config.act_in2)
-
         self.output_quantizer = FakeQuantizer.build(**self.bit_config.act_out)
 
     def forward(self, inputs1: Tensor, inputs2: Tensor) -> Tensor:
@@ -55,9 +53,9 @@ class QMatmul(nn.Module):
 
 
 if __name__ == "__main__":
-    import argparse
+    from easydict import EasyDict
 
-    bit_config = argparse.Namespace()
+    bit_config = EasyDict({})
     bit_config.act_in = {
         "type": "int",
         "format": "int8",

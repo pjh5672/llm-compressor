@@ -1,11 +1,12 @@
 import os
 import re
 import argparse
+from easydict import EasyDict
 
 
 class BitConfigParser:
     def __init__(self):
-        self.bit_config = argparse.Namespace()
+        self.bit_config = EasyDict({})
         self.linear = {}
         self.matmul = {}
 

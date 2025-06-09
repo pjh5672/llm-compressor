@@ -3,7 +3,10 @@ import platform
 
 import torch
 
-from utils.general import LOGGER, PROJECT_NAME, file_date, colorstr
+if __package__:
+    from .general import LOGGER, PROJECT_NAME, file_date, colorstr
+else:
+    from general import LOGGER, PROJECT_NAME, file_date, colorstr
 
 
 def select_device(device="", batch_size=0, newline=True):

@@ -72,7 +72,11 @@ class MXQuantizer(nn.Module):
                 axes=self.axes,
             )
         else:
-            self.shared_axes = [self.axes + 2]
+            if isinstance(self.axes, int):
+                axes = [self.axes]
+            axes = [(i + len(x.shape) - 1 if i < 0 else i) for i in axes]
+            assert all(x >= 0 for x in axes)
+            self.shared_axes = sorted(axes)
 
         if self.zero_point:
             max_val = x.amax(dim=self.axes, keepdim=True)
@@ -158,7 +162,7 @@ if __name__ == "__main__":
     torch.manual_seed(0)
 
     device = torch.device("cuda")
-    x = torch.randn(4, 6).to(device=device)
+    x = torch.randn(4, 2, 6).to(device=device)
     print(x)
 
     quantizer = MXQuantizer(

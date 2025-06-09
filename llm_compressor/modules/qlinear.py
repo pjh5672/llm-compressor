@@ -60,9 +60,9 @@ class QLinear(nn.Linear):
 
 
 if __name__ == "__main__":
-    import argparse
+    from easydict import EasyDict
 
-    bit_config = argparse.Namespace()
+    bit_config = EasyDict({})
     bit_config.weight = {
         "type": "int",
         "format": "int4",
