@@ -201,7 +201,6 @@ class CompressOPTForCausalLM(OPTForCausalLM):
 
 if __name__ == "__main__":
     from easydict import EasyDict
-    from transformers import AutoConfig
 
     device = torch.device("cuda:0")
     quant_config = EasyDict({})
@@ -250,11 +249,10 @@ if __name__ == "__main__":
     }
 
     model_path = "d:\\models\\opt-125m"
-    config = AutoConfig.from_pretrained(model_path)
     model = CompressOPTForCausalLM.from_pretrained(
         model_path,
         attn_implementation="eager",
-        torch_dtype=config.torch_dtype,
+        torch_dtype=torch.bfloat16,
         device_map="cpu",
     )
     model.quantize(

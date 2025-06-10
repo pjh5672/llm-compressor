@@ -101,6 +101,7 @@ class INTQuantizer(nn.Module, BaseQuantizer):
                 zeros = torch.tensor(0)
 
         assert torch.isnan(scales).sum() == 0
+
         return scales.to(dtype), zeros.to(dtype)
 
     def forward(self, x, **kwargs):

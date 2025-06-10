@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import torch
 from transformers import AutoConfig, AutoTokenizer
 
 from llm_compressor.utils.args import build_parser
@@ -17,7 +18,7 @@ config = AutoConfig.from_pretrained(args.model)
 model = CompressOPTForCausalLM.from_pretrained(
     args.model,
     attn_implementation="eager",
-    torch_dtype=config.torch_dtype,
+    torch_dtype=torch.bfloat,
     device_map="cpu",
 )
 tokenizer = AutoTokenizer.from_pretrained(args.model)

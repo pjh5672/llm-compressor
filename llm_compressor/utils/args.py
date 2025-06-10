@@ -117,7 +117,7 @@ def build_parser(root_dir):
     parser.add_argument(
         "--weight",
         type=str,
-        default="int4-g[-1]-zp-rw",
+        default=None,
         help="""Quantization config for weight, 
         following pattern of [type]-[group_size]-[zero_point]-[quant_wise]. 
         (e.g. 'int4-g[-1]-zp-rw' means int4-asymetric-per_token quant)

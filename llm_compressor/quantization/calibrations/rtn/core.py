@@ -13,7 +13,7 @@ from quantization.calibrations.utils import find_layers  # noqa: E402
 
 
 def rtn(model, device):
-    LOGGER.info("Quantizing model...[Quant-method : RTN]")
+    LOGGER.info("Quantizing model... [Quant-method : RTN]")
 
     use_cache = model.config.use_cache
     model.config.use_cache = False
@@ -49,7 +49,6 @@ def rtn(model, device):
 
 if __name__ == "__main__":
     from easydict import EasyDict
-    from transformers import AutoConfig
     from models.opt import CompressOPTForCausalLM
 
     device = torch.device("cuda:0")
@@ -99,11 +98,10 @@ if __name__ == "__main__":
     }
 
     model_path = "d:\\models\\opt-125m"
-    config = AutoConfig.from_pretrained(model_path)
     model = CompressOPTForCausalLM.from_pretrained(
         model_path,
         attn_implementation="eager",
-        torch_dtype=config.torch_dtype,
+        torch_dtype=torch.bfloat16,
         device_map="cpu",
     )
     model._prepare_attention_module(quant_config)
