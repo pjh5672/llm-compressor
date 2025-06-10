@@ -64,7 +64,7 @@ class LMEvaluator:
 
         nlls = []
         loss_fct = torch.nn.CrossEntropyLoss()
-        for i in tqdm(range(n_samples), desc="evaluating..."):
+        for i in tqdm(range(n_samples), desc="Evaluating..."):
             batch = input_ids[:, (i * seq_len) : ((i + 1) * seq_len)]
             lm_logits = model(batch).logits
             shift_logits = lm_logits[:, :-1, :].contiguous().float()
