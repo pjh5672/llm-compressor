@@ -1,20 +1,16 @@
 import os
-import platform
 
 import torch
 
 if __package__:
-    from .general import LOGGER, PROJECT_NAME, file_date, colorstr
+    from .general import LOGGER, colorstr
 else:
-    from general import LOGGER, PROJECT_NAME, file_date, colorstr
+    from general import LOGGER, colorstr
 
 
-def select_device(device="", batch_size=0, newline=True):
+def select_device(device="", batch_size=0, newline=False):
     # device = None or 'cpu' or 0 or '0' or '0,1,2,3'
-    s = (
-        f"{colorstr('bright_magenta', 'bold', PROJECT_NAME)} "
-        + f"🚀 {file_date()} Python-{platform.python_version()} torch-{torch.__version__} "
-    )
+    s = colorstr("Device: ")
     device = (
         str(device).strip().lower().replace("cuda:", "").replace("none", "")
     )  # to string, 'cuda:0' to '0'

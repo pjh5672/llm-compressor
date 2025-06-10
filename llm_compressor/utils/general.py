@@ -1,7 +1,6 @@
 import os
 import sys
 import random
-import inspect
 from pathlib import Path
 from datetime import datetime
 
@@ -39,36 +38,21 @@ def init_seeds(seed=0, deterministic=False):
         os.environ["PYTHONHASHSEED"] = str(seed)
 
 
-def seed_worker(worker_id):
-    # Set dataloader worker seed https://pytorch.org/docs/stable/notes/randomness.html#dataloader
-    worker_seed = torch.initial_seed() % 2**32
-    np.random.seed(worker_seed)
-    random.seed(worker_seed)
-
-
-def print_args(
-    args=None, show_file=True, include_keys=(), exclude_keys=(), logger=None
-):
+def print_args(args=None, include_keys=(), exclude_keys=(), logger=None):
     # Print function arguments (optional args dict)
-    x = inspect.currentframe().f_back  # previous frame
-    file, *_ = inspect.getframeinfo(x)
-    try:
-        file = Path(file).resolve().relative_to(ROOT).with_suffix("")
-    except ValueError:
-        file = Path(file).stem
-    s = f"{file}: " if show_file else ""
+    s = colorstr("\nArguments List:\n")
     if len(include_keys):
-        s += ", ".join(
-            f"{k}={v}" for k, v in args.__dict__.items() if k in include_keys
+        s += "".join(
+            f"- {k} = {v}\n" for k, v in args.__dict__.items() if k in include_keys
         )
     if len(exclude_keys):
-        s += ", ".join(
-            f"{k}={v}" for k, v in args.__dict__.items() if k not in exclude_keys
+        s += "".join(
+            f" - {k} = {v}\n" for k, v in args.__dict__.items() if k not in exclude_keys
         )
     if logger is not None:
-        logger.info(s)
+        logger.info(s.rstrip("\n"))
     else:
-        print(s)
+        print(s.rstrip("\n"))
 
 
 def file_date(path=__file__):
@@ -106,14 +90,11 @@ def colorstr(*input):
     return "".join(colors[x] for x in args) + f"{string}" + colors["end"]
 
 
-def print_eval(result, logger=None):
+def print_eval(result):
     s = "\n"
-    s += "=====" * 2 + " Evaluation Results " + "=====" * 2
+    s += "=====" * 2 + f" {colorstr('Evaluation Results')} " + "=====" * 2
     s += "\n"
     for k, v in result.items():
         s += f"{k.upper():>20s}{v:>20g}\n"
     s += "=====" * 8
-    if logger is not None:
-        logger.info(s)
-    else:
-        print(s)
+    LOGGER.info(s)

@@ -10,9 +10,10 @@ from transformers.models.opt.modeling_opt import OPTAttention, OPTForCausalLM
 PATH = Path(__file__).resolve().parents[1]
 if str(PATH) not in sys.path:
     sys.path.append(str(PATH))
-    
+
 from modules.qmatmul import QMatmul  # noqa: E402
-from modules.qlinear import QLinear # noqa: E402
+from modules.qlinear import QLinear  # noqa: E402
+from quantization.calibrations.rtn.core import rtn  # noqa: E402
 
 
 def eager_attention_forward(
@@ -27,12 +28,17 @@ def eager_attention_forward(
 ):
     qk_matmul = kwargs.get("qk_matmul")
     sv_matmul = kwargs.get("sv_matmul")
+
     attn_weights = qk_matmul(query, key.transpose(-1, -2)) * scaling
     if attention_mask is not None:
         attn_weights = attn_weights + attention_mask
 
-    attn_weights = nn.functional.softmax(attn_weights, dim=-1, dtype=torch.float32).to(query.dtype)
-    attn_weights = nn.functional.dropout(attn_weights, p=dropout, training=module.training)
+    attn_weights = nn.functional.softmax(attn_weights, dim=-1, dtype=torch.float32).to(
+        query.dtype
+    )
+    attn_weights = nn.functional.dropout(
+        attn_weights, p=dropout, training=module.training
+    )
 
     attn_output = sv_matmul(attn_weights, value)
     attn_output = attn_output.transpose(1, 2).contiguous()
@@ -46,13 +52,20 @@ class QuantOPTAttention(OPTAttention):
     def __init__(
         self,
         attention: OPTAttention,
-        bit_config=None,
+        quant_config,
     ):
         super().__init__(
             attention.config,
             attention.layer_idx,
         )
-        self.bit_config = bit_config # it is for KV matmul
+        # self.attention = attention
+        self.quant_config = quant_config
+        self.qk_matmul = QMatmul(self.quant_config, axes=-2)  # Q@K.T - column-wise
+        self.sv_matmul = QMatmul(self.quant_config, axes=-1)  # S@V - row-wise
+        self.q_proj = attention.q_proj
+        self.k_proj = attention.k_proj
+        self.v_proj = attention.v_proj
+        self.out_proj = attention.out_proj
 
     def forward(
         self,
@@ -73,17 +86,26 @@ class QuantOPTAttention(OPTAttention):
         # original order of scaling to follow the original implementation
         # and enforce no scaling (1.0) in the attention call below.
         query_states = self.q_proj(hidden_states) * self.scaling
-        query_states = query_states.view(bsz, -1, self.num_heads, self.head_dim).transpose(1, 2)
+        query_states = query_states.view(
+            bsz, -1, self.num_heads, self.head_dim
+        ).transpose(1, 2)
 
         key_states = self.k_proj(hidden_states)
         value_states = self.v_proj(hidden_states)
-        key_states = key_states.view(bsz, -1, self.num_heads, self.head_dim).transpose(1, 2)
-        value_states = value_states.view(bsz, -1, self.num_heads, self.head_dim).transpose(1, 2)
+        key_states = key_states.view(bsz, -1, self.num_heads, self.head_dim).transpose(
+            1, 2
+        )
+        value_states = value_states.view(
+            bsz, -1, self.num_heads, self.head_dim
+        ).transpose(1, 2)
 
         if past_key_value is not None:
             # save all key/value_states to cache to be re-used for fast auto-regressive generation
             key_states, value_states = past_key_value.update(
-                key_states, value_states, self.layer_idx, {"cache_position": cache_position}
+                key_states,
+                value_states,
+                self.layer_idx,
+                {"cache_position": cache_position},
             )
 
         attention_interface: Callable = eager_attention_forward
@@ -96,8 +118,8 @@ class QuantOPTAttention(OPTAttention):
             attention_mask,
             dropout=0.0 if not self.training else self.dropout,
             scaling=1.0,
-            qk_matmul = QMatmul(self.bit_config, axes=-2),
-            sv_matmul = QMatmul(self.bit_config, axes=-1),
+            qk_matmul=self.qk_matmul,
+            sv_matmul=self.sv_matmul,
             **kwargs,
         )
 
@@ -120,38 +142,68 @@ class CompressOPTForCausalLM(OPTForCausalLM):
     def _prepare_attention_module(self, quant_config):
         for name, module in self.named_modules():
             if isinstance(module, OPTAttention):
-                parent, child_name = name.rsplit('.', 1)
-                parent_module = dict(model.named_modules())[parent]
+                parent, child_name = name.rsplit(".", 1)
+                parent_module = dict(self.named_modules())[parent]
                 qattn = QuantOPTAttention(
                     attention=getattr(parent_module, child_name),
-                    bit_config=quant_config.matmul,
+                    quant_config=quant_config.matmul,
                 )
                 setattr(parent_module, child_name, qattn)
 
         for name, module in self.named_modules():
             if isinstance(module, nn.Linear) and "lm_head" not in name:
-                parent, child_name = name.rsplit('.', 1)
-                parent_module = dict(model.named_modules())[parent]
+                parent, child_name = name.rsplit(".", 1)
+                parent_module = dict(self.named_modules())[parent]
                 qlinear = QLinear(
                     linear=getattr(parent_module, child_name),
-                    bit_config=quant_config.linear,
+                    quant_config=quant_config.linear,
+                    dtype=self.dtype,
                 )
                 setattr(parent_module, child_name, qlinear)
 
-    def quantize(self, tokenizer, quant_config, calib_samples, calib_seq_len):
-        self._prepare_attention_module(quant_config)
+    def quantize(self, tokenizer, quant_method, quant_config, device, **kwargs):
+        if kwargs.get("quantize"):
+            self._prepare_attention_module(quant_config)
 
-    def prune(self, tokenizer, prune_config, calib_samples, calib_seq_len):
+            if quant_method == "rtn":
+                rtn(self, device)
+                return
+        else:
+            return
+
+    def prune(self, tokenizer, prune_method, prune_config, device, **kwargs):
         pass
 
     def save_compressed(self, local_save_path, **kwargs):
         self.save_pretrained(save_directory=local_save_path, **kwargs)
-    
+
+    def get_layers(self):
+        return self.model.decoder.layers
+
+    def get_sequential(self, mode="true"):
+        if mode == "true":
+            return [
+                ["self_attn.k_proj", "self_attn.v_proj", "self_attn.q_proj"],
+                ["self_attn.out_proj"],
+                ["fc1"],
+                ["fc2"],
+            ]
+        else:
+            return [
+                "self_attn.k_proj",
+                "self_attn.v_proj",
+                "self_attn.q_proj",
+                "self_attn.out_proj",
+                "fc1",
+                "fc2",
+            ]
+
 
 if __name__ == "__main__":
     from easydict import EasyDict
     from transformers import AutoConfig
 
+    device = torch.device("cuda:0")
     quant_config = EasyDict({})
     quant_config.linear = EasyDict({})
     quant_config.linear.weight = {
@@ -160,6 +212,7 @@ if __name__ == "__main__":
         "group_size": -1,
         "axes": -1,
         "zero_point": False,
+        "device": device,
     }
     quant_config.linear.act_in = {
         "type": "int",
@@ -167,6 +220,7 @@ if __name__ == "__main__":
         "group_size": -1,
         "axes": -1,
         "zero_point": False,
+        "device": device,
     }
     quant_config.linear.act_out = {
         "type": "int",
@@ -174,6 +228,7 @@ if __name__ == "__main__":
         "group_size": -1,
         "axes": -1,
         "zero_point": False,
+        "device": device,
     }
 
     quant_config.matmul = EasyDict({})
@@ -183,6 +238,7 @@ if __name__ == "__main__":
         "group_size": -1,
         "axes": -1,
         "zero_point": False,
+        "device": device,
     }
     quant_config.matmul.act_out = {
         "type": "int",
@@ -190,9 +246,22 @@ if __name__ == "__main__":
         "group_size": -1,
         "axes": -1,
         "zero_point": False,
+        "device": device,
     }
-    # print(quant_config)
+
     model_path = "d:\\models\\opt-125m"
     config = AutoConfig.from_pretrained(model_path)
-    model = CompressOPTForCausalLM(config)
-    model.quantize(None, quant_config, None, None)
+    model = CompressOPTForCausalLM.from_pretrained(
+        model_path,
+        attn_implementation="eager",
+        torch_dtype=config.torch_dtype,
+        device_map="cpu",
+    )
+    model.quantize(
+        None,
+        quant_method="rtn",
+        quant_config=quant_config,
+        device=device,
+        quantize=True,
+    )
+    print(model)

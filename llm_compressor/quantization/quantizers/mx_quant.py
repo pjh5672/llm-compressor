@@ -56,7 +56,6 @@ class MXQuantizer(nn.Module):
         self.scale_mbits = kwargs.pop("scale_mbits", 0)
         self.str_format = str(format)
         self.configure(zero_point=zero_point, group_size=group_size, axes=axes)
-        self.enable()
 
     def configure(self, zero_point, group_size, axes):
         self.zero_point = zero_point
@@ -110,27 +109,25 @@ class MXQuantizer(nn.Module):
         scales = kwargs.pop("scales", None)
         zeros = kwargs.pop("zeros", None)
 
-        if self.is_enable:
-            x, *meta = _reshape_to_blocks(
-                x,
-                block_size=self.group_size,
-                axes=self.axes,
-            )
+        x, *meta = _reshape_to_blocks(
+            x,
+            block_size=self.group_size,
+            axes=self.axes,
+        )
 
-            if (scales is not None) & (zeros is not None):
-                x_dq = self.fake_quantize(x, scales=scales, zeros=zeros)
-            else:
-                scales, zeros = self.find_params(x, already_reshaped=True)
-                x_dq = self.fake_quantize(x, scales=scales, zeros=zeros)
+        if (scales is not None) & (zeros is not None):
+            x_dq = self.fake_quantize(x, scales=scales, zeros=zeros)
+        else:
+            scales, zeros = self.find_params(x, already_reshaped=True)
+            x_dq = self.fake_quantize(x, scales=scales, zeros=zeros)
 
-            return _undo_reshape_to_blocks(
-                x_dq,
-                padded_shape=meta[-2],
-                orig_shape=meta[1],
-                axes=meta[0],
-                block_size=meta[-1],
-            )
-        return x
+        return _undo_reshape_to_blocks(
+            x_dq,
+            padded_shape=meta[-2],
+            orig_shape=meta[1],
+            axes=meta[0],
+            block_size=meta[-1],
+        )
 
     def fake_quantize(self, x, scales, zeros):
         x = (x - zeros) / scales
@@ -146,15 +143,9 @@ class MXQuantizer(nn.Module):
         )
         return q * scales + zeros
 
-    def enable(self):
-        self.is_enable = True
-
-    def disable(self):
-        self.is_enable = False
-
     def extra_repr(self):
         s = f"Format: MX{self.str_format.split('.')[-1].upper()}, "
-        s += f"Min: {-self.max_norm}, Max: {self.max_norm}"
+        s += f"Min: {-self.max_norm}, Max: {self.max_norm}, Axes: {self.axes}"
         return s
 
 

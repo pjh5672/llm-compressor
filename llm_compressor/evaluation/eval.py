@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.append(str(ROOT))
 
+from utils.general import LOGGER  # noqa: E402
 from utils.dataset import get_loaders  # noqa: E402
 
 
@@ -19,6 +20,9 @@ class LMEvaluator:
         self.n_samples = n_samples
 
     def eval(self, model, tasks, **kwargs):
+        LOGGER.info("Evaluating compressed model...")
+
+        model.to(self.device)
         results = {}
         tasks = tasks.split(",")
         if "ppl" in tasks:
@@ -47,6 +51,8 @@ class LMEvaluator:
             ppl[f"ppl.{dataset}"] = self.compute_ppl(
                 model=model, dataset=testenc, seq_len=seq_len
             )
+
+            LOGGER.info(f"PPL[{dataset.upper()}] : {ppl[f'ppl.{dataset}']:.4f}")
         return ppl
 
     @torch.no_grad()
@@ -81,6 +87,8 @@ class LMEvaluator:
                 results[task] = acc["results"]["truthfulqa_mc1"]["acc,none"] * 100
             else:
                 results[task] = acc["results"][f"{task}"]["acc,none"] * 100
+
+                LOGGER.info(f"QA[{task.upper()}] : {results[task]:.4f}")
         return results
 
     @torch.no_grad()
