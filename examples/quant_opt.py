@@ -18,7 +18,7 @@ config = AutoConfig.from_pretrained(args.model)
 model = CompressOPTForCausalLM.from_pretrained(
     args.model,
     attn_implementation="eager",
-    torch_dtype=torch.bfloat,
+    torch_dtype=torch.bfloat16,
     device_map="cpu",
 )
 tokenizer = AutoTokenizer.from_pretrained(args.model)
