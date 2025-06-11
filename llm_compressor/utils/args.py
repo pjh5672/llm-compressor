@@ -101,8 +101,7 @@ class QuantConfigParser:
 def build_parser(root_dir):
     parser = argparse.ArgumentParser()
 
-    # parser.add_argument("--model", type=str, required=True, help="Path to HF model"
-    parser.add_argument("--model", type=str, default="d:\\models\\opt-125m")
+    parser.add_argument("--model", type=str, required=True, help="Path to HF model")
 
     parser.add_argument("--exp-name", type=str, default="test", help="Name to project")
 

@@ -15,7 +15,7 @@ logger.add(
     level="INFO",
 )
 LOGGER = logger
-PROJECT_NAME = "LLM-Compression"
+PROJECT_NAME = "LLM-Compressor"
 ROOT = Path(__file__).resolve().parents[1]
 
 

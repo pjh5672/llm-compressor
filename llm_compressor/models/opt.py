@@ -4,6 +4,8 @@ from typing import Callable, Optional, Tuple
 
 import torch
 from torch import nn
+from transformers import AutoTokenizer
+from accelerate import init_empty_weights
 from transformers.cache_utils import Cache
 from transformers.models.opt.modeling_opt import OPTAttention, OPTForCausalLM
 
@@ -11,9 +13,10 @@ PATH = Path(__file__).resolve().parents[1]
 if str(PATH) not in sys.path:
     sys.path.append(str(PATH))
 
-from modules.qmatmul import QMatmul  # noqa: E402
-from modules.qlinear import QLinear  # noqa: E402
-from quantization.calibrations.rtn.core import rtn  # noqa: E402
+from models.base import CompressForCausalLM # noqa: E402
+from modules.qmatmul import QMatmul # noqa: E402
+from modules.qlinear import QLinear # noqa: E402
+from quantization.calibrations.rtn.core import rtn # noqa: E402
 
 
 def eager_attention_forward(
@@ -132,12 +135,14 @@ class QuantOPTAttention(OPTAttention):
         return attn_output, attn_weights, past_key_value
 
 
-class CompressOPTForCausalLM(OPTForCausalLM):
+class CompressOPTForCausalLM(OPTForCausalLM, CompressForCausalLM):
     def __init__(
         self,
         config,
     ):
         super().__init__(config)
+        self._embed_tokens = self.model.decoder.embed_tokens
+        self._embed_positions = self.model.decoder.embed_positions
 
     def _prepare_attention_module(self, quant_config):
         for name, module in self.named_modules():
@@ -174,8 +179,20 @@ class CompressOPTForCausalLM(OPTForCausalLM):
     def prune(self, tokenizer, prune_method, prune_config, device, **kwargs):
         pass
 
-    def save_compressed(self, local_save_path, **kwargs):
-        self.save_pretrained(save_directory=local_save_path, **kwargs)
+    def save_compressed(self, base_model_path, local_save_path):
+        with init_empty_weights():
+            tokenizer = AutoTokenizer.from_pretrained(base_model_path)
+            base_model = OPTForCausalLM.from_pretrained(
+                base_model_path, low_cpu_mem_usage=True
+            )
+
+        compressed_sd = {}
+        for k, v in self.state_dict().items():
+            if k not in ("_embed_tokens.weight", "_embed_positions.weight"):
+                compressed_sd[k] = v
+        
+        OPTForCausalLM.save_pretrained(base_model, local_save_path, state_dict=compressed_sd, )
+        tokenizer.save_pretrained(local_save_path)
 
     def get_layers(self):
         return self.model.decoder.layers
@@ -198,17 +215,35 @@ class CompressOPTForCausalLM(OPTForCausalLM):
                 "fc2",
             ]
 
+    @property
+    def embed_tokens(self):
+        return self._embed_tokens
+    
+    @embed_tokens.setter
+    def embed_tokens(self, value):
+        self._embed_tokens = value
+    
+    @property
+    def embed_positions(self):
+        return self._embed_positions
+    
+    @embed_positions.setter
+    def embed_positions(self, value):
+        self._embed_positions = value
+
 
 if __name__ == "__main__":
     from easydict import EasyDict
+    from evaluation.eval import LMEvaluator
 
+    group_size = -1
     device = torch.device("cuda:0")
     quant_config = EasyDict({})
     quant_config.linear = EasyDict({})
     quant_config.linear.weight = {
         "type": "int",
         "format": "int4",
-        "group_size": -1,
+        "group_size": group_size,
         "axes": -1,
         "zero_point": False,
         "device": device,
@@ -216,7 +251,7 @@ if __name__ == "__main__":
     quant_config.linear.act_in = {
         "type": "int",
         "format": "int8",
-        "group_size": -1,
+        "group_size": group_size,
         "axes": -1,
         "zero_point": False,
         "device": device,
@@ -224,7 +259,7 @@ if __name__ == "__main__":
     quant_config.linear.act_out = {
         "type": "int",
         "format": "int8",
-        "group_size": -1,
+        "group_size": group_size,
         "axes": -1,
         "zero_point": False,
         "device": device,
@@ -234,7 +269,7 @@ if __name__ == "__main__":
     quant_config.matmul.act_in = {
         "type": "int",
         "format": "int8",
-        "group_size": -1,
+        "group_size": group_size,
         "axes": -1,
         "zero_point": False,
         "device": device,
@@ -242,7 +277,7 @@ if __name__ == "__main__":
     quant_config.matmul.act_out = {
         "type": "int",
         "format": "int8",
-        "group_size": -1,
+        "group_size": group_size,
         "axes": -1,
         "zero_point": False,
         "device": device,
@@ -263,3 +298,12 @@ if __name__ == "__main__":
         quantize=True,
     )
     print(model)
+
+    evaluator = LMEvaluator(device=device, n_samples=128)
+    eval_kwargs = {
+        "tokenizer_path": model_path,
+        "seq_len": 512,
+        "batch_size": 1,
+    }
+    results = evaluator.eval(model, tasks="ppl", **eval_kwargs)
+    print(results)
