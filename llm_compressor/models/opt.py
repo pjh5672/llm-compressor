@@ -13,10 +13,10 @@ PATH = Path(__file__).resolve().parents[1]
 if str(PATH) not in sys.path:
     sys.path.append(str(PATH))
 
-from models.base import CompressForCausalLM # noqa: E402
-from modules.qmatmul import QMatmul # noqa: E402
-from modules.qlinear import QLinear # noqa: E402
-from quantization.calibrations.rtn.core import rtn # noqa: E402
+from models.base import CompressForCausalLM  # noqa: E402
+from modules.qmatmul import QMatmul  # noqa: E402
+from modules.qlinear import QLinear  # noqa: E402
+from quantization.calibrations.rtn.core import rtn  # noqa: E402
 
 
 def eager_attention_forward(
@@ -190,8 +190,12 @@ class CompressOPTForCausalLM(OPTForCausalLM, CompressForCausalLM):
         for k, v in self.state_dict().items():
             if k not in ("_embed_tokens.weight", "_embed_positions.weight"):
                 compressed_sd[k] = v
-        
-        OPTForCausalLM.save_pretrained(base_model, local_save_path, state_dict=compressed_sd, )
+
+        OPTForCausalLM.save_pretrained(
+            base_model,
+            local_save_path,
+            state_dict=compressed_sd,
+        )
         tokenizer.save_pretrained(local_save_path)
 
     def get_layers(self):
@@ -218,15 +222,15 @@ class CompressOPTForCausalLM(OPTForCausalLM, CompressForCausalLM):
     @property
     def embed_tokens(self):
         return self._embed_tokens
-    
+
     @embed_tokens.setter
     def embed_tokens(self, value):
         self._embed_tokens = value
-    
+
     @property
     def embed_positions(self):
         return self._embed_positions
-    
+
     @embed_positions.setter
     def embed_positions(self, value):
         self._embed_positions = value
