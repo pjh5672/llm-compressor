@@ -19,6 +19,10 @@ classifiers = [
 license = { file = "LICENSE" }
 dynamic = ["version", "dependencies"]
 
+[tool.setuptools.dynamic]
+version = {file = ["VERSION"]}
+dependencies = {file = ["requirements.txt"]}
+
 [tool.setuptools.packages.find]
 where = ["."]
 exclude = ["tests*", "examples*", "experiments*"]

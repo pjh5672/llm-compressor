@@ -34,6 +34,7 @@ def rtn(model, device):
 
             for name in subset:
                 W = subset[name].weight.data
+                print(W.shape)
                 subset[name].weight.data = subset[name].weight_quantizer(W)
                 del subset[name].weight_quantizer
                 torch.cuda.empty_cache()
@@ -49,7 +50,10 @@ def rtn(model, device):
 
 if __name__ == "__main__":
     from easydict import EasyDict
-    from models.opt import CompressOPTForCausalLM
+    from models.opt import CompressOPTForCausalLM  # noqa: F401
+    from models.bloom import CompressBloomForCausalLM  # noqa: F401
+    from models.llama import CompressLlamaForCausalLM  # noqa: F401
+    from models.phi import CompressPhiForCausalLM  # noqa: F401
 
     device = torch.device("cuda:0")
     quant_config = EasyDict({})
@@ -97,8 +101,29 @@ if __name__ == "__main__":
         "device": device,
     }
 
-    model_path = "d:\\models\\opt-125m"
-    model = CompressOPTForCausalLM.from_pretrained(
+    # model_path = "d:\\models\\opt-125m"
+    # model = CompressOPTForCausalLM.from_pretrained(
+    #     model_path,
+    #     attn_implementation="eager",
+    #     torch_dtype=torch.bfloat16,
+    #     device_map="cpu",
+    # )
+    # model_path = "d:\\models\\bloom-560m"
+    # model = CompressLlamaForCausalLM.from_pretrained(
+    #     model_path,
+    #     attn_implementation="eager",
+    #     torch_dtype=torch.bfloat16,
+    #     device_map="cpu",
+    # )
+    # model_path = "d:\\models\\llama-3.2-1b-it"
+    # model = CompressLlamaForCausalLM.from_pretrained(
+    #     model_path,
+    #     attn_implementation="eager",
+    #     torch_dtype=torch.bfloat16,
+    #     device_map="cpu",
+    # )
+    model_path = "d:\\models\\phi-1.5"
+    model = CompressPhiForCausalLM.from_pretrained(
         model_path,
         attn_implementation="eager",
         torch_dtype=torch.bfloat16,

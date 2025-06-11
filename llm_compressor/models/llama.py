@@ -7,7 +7,14 @@ from torch import nn
 from transformers import AutoTokenizer
 from accelerate import init_empty_weights
 from transformers.cache_utils import Cache
-from transformers.models.opt.modeling_opt import OPTAttention, OPTForCausalLM
+from transformers.processing_utils import Unpack
+from transformers.modeling_flash_attention_utils import FlashAttentionKwargs
+from transformers.models.llama.modeling_llama import (
+    LlamaAttention,
+    LlamaForCausalLM,
+    repeat_kv,
+    apply_rotary_pos_emb,
+)
 
 PATH = Path(__file__).resolve().parents[1]
 if str(PATH) not in sys.path:
@@ -32,9 +39,13 @@ def eager_attention_forward(
     qk_matmul = kwargs.get("qk_matmul")
     sv_matmul = kwargs.get("sv_matmul")
 
-    attn_weights = qk_matmul(query, key.transpose(-1, -2)) * scaling
+    key_states = repeat_kv(key, module.num_key_value_groups)
+    value_states = repeat_kv(value, module.num_key_value_groups)
+
+    attn_weights = qk_matmul(query, key_states.transpose(2, 3)) * scaling
     if attention_mask is not None:
-        attn_weights = attn_weights + attention_mask
+        causal_mask = attention_mask[:, :, :, : key_states.shape[-2]]
+        attn_weights = attn_weights + causal_mask
 
     attn_weights = nn.functional.softmax(attn_weights, dim=-1, dtype=torch.float32).to(
         query.dtype
@@ -42,19 +53,18 @@ def eager_attention_forward(
     attn_weights = nn.functional.dropout(
         attn_weights, p=dropout, training=module.training
     )
-
-    attn_output = sv_matmul(attn_weights, value)
+    attn_output = sv_matmul(attn_weights, value_states)
     attn_output = attn_output.transpose(1, 2).contiguous()
 
     return attn_output, attn_weights
 
 
-class QuantOPTAttention(OPTAttention):
+class QuantLlamaAttention(LlamaAttention):
     """Multi-headed attention from 'Attention Is All You Need' paper"""
 
     def __init__(
         self,
-        attention: OPTAttention,
+        attention: LlamaAttention,
         quant_config,
     ):
         super().__init__(
@@ -67,47 +77,34 @@ class QuantOPTAttention(OPTAttention):
         self.q_proj = attention.q_proj
         self.k_proj = attention.k_proj
         self.v_proj = attention.v_proj
-        self.out_proj = attention.out_proj
+        self.o_proj = attention.o_proj
 
     def forward(
         self,
         hidden_states: torch.Tensor,
-        past_key_value: Optional[Tuple[torch.Tensor]] = None,
-        attention_mask: Optional[torch.Tensor] = None,
-        layer_head_mask: Optional[torch.Tensor] = None,
-        output_attentions: bool = False,
-        cache_position: Optional[torch.Tensor] = None,
-        **kwargs,
-    ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Cache]]:
-        """Input shape: Batch x Time x Channel"""
-        bsz, tgt_len, _ = hidden_states.size()
+        position_embeddings: Tuple[torch.Tensor, torch.Tensor],
+        attention_mask: Optional[torch.Tensor],
+        past_key_value: Optional[Cache] = None,
+        cache_position: Optional[torch.LongTensor] = None,
+        **kwargs: Unpack[FlashAttentionKwargs],
+    ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
+        input_shape = hidden_states.shape[:-1]
+        hidden_shape = (*input_shape, -1, self.head_dim)
 
-        # Scaling is susceptible to floating point arithmetics' inprecisions
-        # which can lead to different results (this is dependent from model
-        # to model, e.g. whisper is one such case). We therefore keep the
-        # original order of scaling to follow the original implementation
-        # and enforce no scaling (1.0) in the attention call below.
-        query_states = self.q_proj(hidden_states) * self.scaling
-        query_states = query_states.view(
-            bsz, -1, self.num_heads, self.head_dim
-        ).transpose(1, 2)
+        query_states = self.q_proj(hidden_states).view(hidden_shape).transpose(1, 2)
+        key_states = self.k_proj(hidden_states).view(hidden_shape).transpose(1, 2)
+        value_states = self.v_proj(hidden_states).view(hidden_shape).transpose(1, 2)
 
-        key_states = self.k_proj(hidden_states)
-        value_states = self.v_proj(hidden_states)
-        key_states = key_states.view(bsz, -1, self.num_heads, self.head_dim).transpose(
-            1, 2
+        cos, sin = position_embeddings
+        query_states, key_states = apply_rotary_pos_emb(
+            query_states, key_states, cos, sin
         )
-        value_states = value_states.view(
-            bsz, -1, self.num_heads, self.head_dim
-        ).transpose(1, 2)
 
         if past_key_value is not None:
-            # save all key/value_states to cache to be re-used for fast auto-regressive generation
+            # sin and cos are specific to RoPE models; cache_position needed for the static cache
+            cache_kwargs = {"sin": sin, "cos": cos, "cache_position": cache_position}
             key_states, value_states = past_key_value.update(
-                key_states,
-                value_states,
-                self.layer_idx,
-                {"cache_position": cache_position},
+                key_states, value_states, self.layer_idx, cache_kwargs
             )
 
         attention_interface: Callable = eager_attention_forward
@@ -118,37 +115,32 @@ class QuantOPTAttention(OPTAttention):
             key_states,
             value_states,
             attention_mask,
-            dropout=0.0 if not self.training else self.dropout,
-            scaling=1.0,
+            dropout=0.0 if not self.training else self.attention_dropout,
+            scaling=self.scaling,
             qk_matmul=self.qk_matmul,
             sv_matmul=self.sv_matmul,
             **kwargs,
         )
 
-        attn_output = attn_output.reshape(bsz, tgt_len, -1).contiguous()
-        attn_output = self.out_proj(attn_output)
-
-        if not output_attentions:
-            attn_weights = None
-
-        return attn_output, attn_weights, past_key_value
+        attn_output = attn_output.reshape(*input_shape, -1).contiguous()
+        attn_output = self.o_proj(attn_output)
+        return attn_output, attn_weights
 
 
-class CompressOPTForCausalLM(OPTForCausalLM, CompressForCausalLM):
+class CompressLlamaForCausalLM(LlamaForCausalLM, CompressForCausalLM):
     def __init__(
         self,
         config,
     ):
         super().__init__(config)
-        self._embed_tokens = self.model.decoder.embed_tokens
-        self._embed_positions = self.model.decoder.embed_positions
+        self._embed_tokens = self.model.embed_tokens
 
     def _prepare_attention_module(self, quant_config):
         for name, module in self.named_modules():
-            if isinstance(module, OPTAttention):
+            if isinstance(module, LlamaAttention):
                 parent, child_name = name.rsplit(".", 1)
                 parent_module = dict(self.named_modules())[parent]
-                qattn = QuantOPTAttention(
+                qattn = QuantLlamaAttention(
                     attention=getattr(parent_module, child_name),
                     quant_config=quant_config.matmul,
                 )
@@ -181,16 +173,16 @@ class CompressOPTForCausalLM(OPTForCausalLM, CompressForCausalLM):
     def save_compressed(self, base_model_path, local_save_path):
         with init_empty_weights():
             tokenizer = AutoTokenizer.from_pretrained(base_model_path)
-            base_model = OPTForCausalLM.from_pretrained(
+            base_model = LlamaForCausalLM.from_pretrained(
                 base_model_path, low_cpu_mem_usage=True
             )
 
         compressed_sd = {}
         for k, v in self.state_dict().items():
-            if k not in ("_embed_tokens.weight", "_embed_positions.weight"):
+            if k not in ("_embed_tokens.weight"):
                 compressed_sd[k] = v
 
-        OPTForCausalLM.save_pretrained(
+        LlamaForCausalLM.save_pretrained(
             base_model,
             local_save_path,
             state_dict=compressed_sd,
@@ -198,24 +190,25 @@ class CompressOPTForCausalLM(OPTForCausalLM, CompressForCausalLM):
         tokenizer.save_pretrained(local_save_path)
 
     def get_layers(self):
-        return self.model.decoder.layers
+        return self.model.layers
 
     def get_sequential(self, mode="true"):
         if mode == "true":
             return [
                 ["self_attn.k_proj", "self_attn.v_proj", "self_attn.q_proj"],
-                ["self_attn.out_proj"],
-                ["fc1"],
-                ["fc2"],
+                ["self_attn.o_proj"],
+                ["mlp.up_proj", "mlp.gate_proj"],
+                ["mlp.down_proj"],
             ]
         else:
             return [
                 "self_attn.k_proj",
                 "self_attn.v_proj",
                 "self_attn.q_proj",
-                "self_attn.out_proj",
-                "fc1",
-                "fc2",
+                "self_attn.o_proj",
+                "mlp.up_proj",
+                "mlp.gate_proj",
+                "mlp.down_proj",
             ]
 
     @property
@@ -225,14 +218,6 @@ class CompressOPTForCausalLM(OPTForCausalLM, CompressForCausalLM):
     @embed_tokens.setter
     def embed_tokens(self, value):
         self._embed_tokens = value
-
-    @property
-    def embed_positions(self):
-        return self._embed_positions
-
-    @embed_positions.setter
-    def embed_positions(self, value):
-        self._embed_positions = value
 
 
 if __name__ == "__main__":
@@ -286,8 +271,8 @@ if __name__ == "__main__":
         "device": device,
     }
 
-    model_path = "d:\\models\\opt-125m"
-    model = CompressOPTForCausalLM.from_pretrained(
+    model_path = "d:\\models\\llama-3.2-1b-it"
+    model = CompressLlamaForCausalLM.from_pretrained(
         model_path,
         attn_implementation="eager",
         torch_dtype=torch.bfloat16,
