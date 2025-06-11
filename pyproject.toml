@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "llm_compressor"
+description = "SOTA low-bit LLM quantization (INT/FP/MX) &amp; sparsity; leading model compression techniques on PyTorch"
+authors = [
+  { name = "Jiho Park", email = "pjh5672.dev@gmail.com" }
+]
+readme = "README.md"
+keywords = ["keywords"]
+requires-python = ">=3.12"
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+]
+license = { file = "LICENSE" }
+dynamic = ["version", "dependencies"]
+
+[tool.setuptools.dynamic]
+version = {file = ["VERSION"]}
+dependencies = {file = ["requirements.txt"]}
+
+[tool.setuptools.packages.find]
+where = ["."]
+exclude = ["tests*", "examples*", "experiments*"]

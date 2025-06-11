@@ -19,13 +19,5 @@ class BaseQuantizer(ABC):
         pass
 
     @abstractmethod
-    def enable(self):
-        pass
-
-    @abstractmethod
-    def disable(self):
-        pass
-
-    @abstractmethod
     def extra_repr(self):
         pass

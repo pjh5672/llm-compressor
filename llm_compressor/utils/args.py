@@ -1,34 +1,74 @@
 import os
 import re
+import sys
+import platform
 import argparse
+from pathlib import Path
+
+import torch
+from easydict import EasyDict
+
+PATH = Path(__file__).resolve().parents[1]
+if str(PATH) not in sys.path:
+    sys.path.append(str(PATH))
+
+from utils.general import (
+    PROJECT_NAME,
+    LOGGER,
+    init_seeds,
+    print_args,
+    colorstr,
+    file_date,
+)  # noqa: E402
+from utils.torch_utils import select_device  # noqa: E402
 
 
-class QConfigParser:
-    def __init__(self):
-        self.q_config = argparse.Namespace()
+class QuantConfigParser:
+    def __init__(self, device):
+        self.device = device
+        self.quant_config = EasyDict({})
         self.linear = {}
         self.matmul = {}
 
     def build_cfg(self, weight, act_in, act_out):
         self.get_linear(weight, act_in, act_out)
         self.get_matmul(act_in, act_out)
-        return self.q_config
+        return self.quant_config
 
     def get_linear(self, weight, act_in, act_out):
-        self.linear["weight"] = self.parse_qconfig(weight)
-        self.linear["act_in"] = self.parse_qconfig(act_in)
-        self.linear["act_out"] = self.parse_qconfig(act_out)
-        self.q_config.linear = self.linear
+        self.linear["weight"] = self.parse_config(weight)
+        self.linear["act_in"] = self.parse_config(act_in)
+        self.linear["act_out"] = self.parse_config(act_out)
+        self.quant_config.linear = self.linear
 
     def get_matmul(self, act_in, act_out):
-        self.matmul["act_in"] = self.parse_qconfig(act_in)
-        self.matmul["act_out"] = self.parse_qconfig(act_out)
-        self.q_config.matmul = self.matmul
+        self.matmul["act_in"] = self.parse_config(act_in)
+        self.matmul["act_out"] = self.parse_config(act_out)
+        self.quant_config.matmul = self.matmul
 
-    def parse_qconfig(self, s):
+    def define_qtype(self, fmt):
+        if "mx" in fmt:
+            return "mx"
+        elif "fp" in fmt:
+            return "fp"
+        elif "int" in fmt:
+            return "int"
+        else:
+            raise RuntimeError(f"Invalid format, got {fmt}.")
+
+    def parse_config(self, s):
         config = {}
+        if s is None:
+            config["type"] = None
+            config["format"] = None
+            config["group_size"] = None
+            config["axes"] = None
+            config["zero_point"] = None
+            config["device"] = None
+            return config
+
         pattern = (
-            r"(?P<type>[^-]+)"
+            r"(?P<format>[^-]+)"
             r"-(?P<group>g\[-?\d+(?:,\d+)*\]+)"
             r"-(?:(?P<zp>zp)-)?"
             r"(?P<wise>rw|cw)$"
@@ -36,10 +76,12 @@ class QConfigParser:
         m = re.match(pattern, s)
         if m:
             result = m.groupdict()
-            config["type"] = result["type"]
-            config["group"] = self.parse_group_values(result["group"])
+            config["type"] = self.define_qtype(result["format"])
+            config["format"] = result["format"].replace("mx", "")
+            config["group_size"] = self.parse_group_values(result["group"])
             config["axes"] = -1 if result["wise"] == "rw" else -2
             config["zero_point"] = result["zp"] == "zp"
+            config["device"] = self.device
             return config
 
         raise RuntimeError(f"Cannot update Qconfig. No matched pattern, got {s}.")
@@ -64,33 +106,46 @@ def build_parser(root_dir):
     parser.add_argument("--exp-name", type=str, default="test", help="Name to project")
 
     parser.add_argument(
-        "--quantize", action="store_true", help="enable to quantize model"
+        "--quantize", action="store_true", help="Enable to quantize model"
     )
 
     parser.add_argument(
-        "--quant-method", type=str, default="rtn", help="Quantization method"
+        "--quant-method", type=str, default=None, help="Quantization method"
     )
 
     parser.add_argument(
         "--weight",
         type=str,
-        default="int4-g[-1]-zp-rw",
-        help="Quantization config for weight",
+        default=None,
+        help="""Quantization config for weight, 
+        following pattern of [type]-[group_size]-[zero_point]-[quant_wise]. 
+        (e.g. 'int4-g[-1]-zp-rw' means int4-asymetric-per_token quant)
+        """,
     )
 
     parser.add_argument(
         "--act-in",
         type=str,
-        default="int8-g[-1]-zp-rw",
-        help="Quantization config for input activation",
+        default=None,
+        help="""Quantization config for input activation, 
+        following pattern of [type]-[group_size]-[zero_point]-[quant_wise]. 
+        (e.g. 'int8-g[-1]-zp-rw' means int8-asymetric-per_token quant)
+        """,
     )
 
     parser.add_argument(
         "--act-out",
         type=str,
-        default="int8-g[-1]-zp-rw",
-        help="Quantization config for output activation",
+        default=None,
+        help="""Quantization config for output activation, 
+        following pattern of [type]-[group_size]-[zero_point]-[quant_wise]. 
+        (e.g. 'int8-g[-1]-zp-rw' means int8-asymetric-per_token quant)
+        """,
     )
+
+    parser.add_argument("--prune", action="store_true", help="enable to prune model")
+
+    parser.add_argument("--prune-method", type=str, default=None, help="Prune method")
 
     parser.add_argument(
         "--calib-data", type=str, default="wiki2", help="Calibration dataset"
@@ -100,9 +155,16 @@ def build_parser(root_dir):
         "--calib-num", type=int, default=128, help="Number of calibration dataset"
     )
 
-    parser.add_argument("--save", action="store_true", help="save to quantized model")
+    parser.add_argument("--save", action="store_true", help="Save to compressed model")
 
-    parser.add_argument("--tasks", type=str, default=None, help="Evaluation tasks")
+    parser.add_argument("--tasks", type=str, default="ppl", help="Evaluation tasks")
+
+    parser.add_argument(
+        "--seq-len",
+        type=int,
+        default=2048,
+        help="Sequence length for calibration and evaluation",
+    )
 
     parser.add_argument(
         "--batch-size", type=int, default=8, help="Evaluation batch size"
@@ -122,15 +184,24 @@ def build_parser(root_dir):
     if args.save_dir:
         os.makedirs(args.save_dir, exist_ok=True)
 
-    parser = QConfigParser()
-    args.q_config = parser.build_cfg(args.weight, args.act_in, args.act_out)
-    return args
+    LOGGER.info(f" 🐯 {colorstr('bright_blue', 'bold', PROJECT_NAME)} 🐯 ")
+    LOGGER.info(
+        f"{file_date()} Python-{platform.python_version()} torch-{torch.__version__}"
+    )
+
+    init_seeds(args.seed, deterministic=True)
+    device = select_device(device=args.device, batch_size=args.batch_size)
+    LOGGER.add(args.exp_dir / f"{file_date()}.log", level="DEBUG")
+
+    parser = QuantConfigParser(device)
+    args.quant_config = parser.build_cfg(args.weight, args.act_in, args.act_out)
+    print_args(
+        args=args, exclude_keys=("exp_dir", "save_dir", "quant_config"), logger=LOGGER
+    )
+    return args, device
 
 
 if __name__ == "__main__":
-    from pathlib import Path
-
     ROOT = Path(__file__).resolve().parents[1]
-
-    args = build_parser(root_dir=ROOT)
+    args, device = build_parser(root_dir=ROOT)
     print(args)

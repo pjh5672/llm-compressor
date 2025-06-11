@@ -24,7 +24,7 @@ else:
 class FPQuantizer(nn.Module):
     def __init__(
         self,
-        fmt: ElemFormat,
+        format: ElemFormat,
         group_size=-1,
         axes=-1,
         zero_point=False,
@@ -47,23 +47,24 @@ class FPQuantizer(nn.Module):
             - 2d-list or 2d-tuple: 2d-block quant.
         axes:
             - -1: row-wise quant.
-            - -2: channel-wise quant.
+            - -2: column-wise quant.
         """
         super().__init__()
 
-        assert fmt in (ElemFormat.fp4_e2m1, ElemFormat.fp8_e4m3, ElemFormat.fp8_e5m2), (
-            f"Not support Format for {self.__class__.__name__}"
-        )
+        assert format in (
+            ElemFormat.fp4_e2m1,
+            ElemFormat.fp8_e4m3,
+            ElemFormat.fp8_e5m2,
+        ), f"Not support Format for {self.__class__.__name__}"
 
-        ebits, mbits, emax, max_norm, min_norm = _get_format_params(fmt)
+        ebits, mbits, emax, max_norm, min_norm = _get_format_params(format)
         self.ebits = torch.tensor(ebits)
         self.mbits = torch.tensor(mbits)
         self.emax = torch.tensor(emax)
         self.max_norm = torch.tensor(max_norm)
         self.min_norm = torch.tensor(min_norm)
-        self.str_fmt = str(fmt)
+        self.str_format = str(format)
         self.configure(zero_point=zero_point, group_size=group_size, axes=axes)
-        self.enable()
 
     def configure(self, zero_point, group_size, axes):
         assert (group_size != 1) or not zero_point, (
@@ -122,35 +123,33 @@ class FPQuantizer(nn.Module):
         scales = kwargs.pop("scales", None)
         zeros = kwargs.pop("zeros", None)
 
-        if self.is_enable:
-            if self.group_size != 0:
-                if self.group_size == -1:  # per-token quant.
-                    self.group_size = x.shape[-1]
-                elif self.group_size == -2:  # per-channel quant.
-                    self.group_size = x.shape[-2]
+        if self.group_size != 0:
+            if self.group_size == -1:  # per-token quant.
+                self.group_size = x.shape[-1]
+            elif self.group_size == -2:  # per-channel quant.
+                self.group_size = x.shape[-2]
 
-                x, *meta = _reshape_to_blocks(
-                    x,
-                    block_size=self.group_size,
-                    axes=self.axes,
-                )
+            x, *meta = _reshape_to_blocks(
+                x,
+                block_size=self.group_size,
+                axes=self.axes,
+            )
 
-            if (scales is not None) & (zeros is not None):
-                x_dq = self.fake_quantize(x, scales=scales, zeros=zeros)
-            else:
-                scales, zeros = self.find_params(x, already_reshaped=True)
-                x_dq = self.fake_quantize(x, scales=scales, zeros=zeros)
+        if (scales is not None) & (zeros is not None):
+            x_dq = self.fake_quantize(x, scales=scales, zeros=zeros)
+        else:
+            scales, zeros = self.find_params(x, already_reshaped=True)
+            x_dq = self.fake_quantize(x, scales=scales, zeros=zeros)
 
-            if self.group_size != 0:
-                return _undo_reshape_to_blocks(
-                    x_dq,
-                    padded_shape=meta[-2],
-                    orig_shape=meta[1],
-                    axes=meta[0],
-                    block_size=meta[-1],
-                )
-            return x_dq
-        return x
+        if self.group_size != 0:
+            return _undo_reshape_to_blocks(
+                x_dq,
+                padded_shape=meta[-2],
+                orig_shape=meta[1],
+                axes=meta[0],
+                block_size=meta[-1],
+            )
+        return x_dq
 
     def fake_quantize(self, x, scales, zeros):
         q = (x - zeros) / scales
@@ -159,15 +158,9 @@ class FPQuantizer(nn.Module):
         q = _safe_rshift(q, self.mbits - 2, self.emax)
         return q * scales + zeros
 
-    def enable(self):
-        self.is_enable = True
-
-    def disable(self):
-        self.is_enable = False
-
     def extra_repr(self):
-        s = f"Format: {self.str_fmt.split('.')[-1].upper()}, "
-        s += f"Min: {self.min_norm}, Max: {self.max_norm}"
+        s = f"Format: {self.str_format.split('.')[-1].upper()}, "
+        s += f"Min: {-self.max_norm}, Max: {self.max_norm}, Axes: {self.axes}"
         return s
 
 
@@ -179,14 +172,14 @@ if __name__ == "__main__":
     print(x)
 
     # quantizer = FPQuantizer(
-    #     fmt=ElemFormat.fp8_e4m3,
+    #     format=ElemFormat.fp8_e4m3,
     #     group_size=(2, 6),
     #     axes=-1,
     #     zero_point=False,
     #     device=device,
     # )
     quantizer = FPQuantizer(
-        fmt=ElemFormat.fp4_e2m1,
+        format=ElemFormat.fp4_e2m1,
         group_size=-1,
         axes=-1,
         zero_point=False,

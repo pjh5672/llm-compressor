@@ -22,7 +22,7 @@ else:
 class MXQuantizer(nn.Module):
     def __init__(
         self,
-        fmt: ElemFormat,
+        format: ElemFormat,
         group_size=32,
         axes=-1,
         zero_point=False,
@@ -34,11 +34,11 @@ class MXQuantizer(nn.Module):
             - 32: per-group quant.
         axes:
             - -1: row-wise quant.
-            - -2: channel-wise quant.
+            - -2: column-wise quant.
         """
         super().__init__()
 
-        assert fmt in (
+        assert format in (
             ElemFormat.int4,
             ElemFormat.int8,
             ElemFormat.fp4_e2m1,
@@ -46,7 +46,7 @@ class MXQuantizer(nn.Module):
             ElemFormat.fp8_e5m2,
         ), f"Not support Format for {self.__class__.__name__}"
 
-        ebits, mbits, emax, max_norm, min_norm = _get_format_params(fmt)
+        ebits, mbits, emax, max_norm, min_norm = _get_format_params(format)
         self.ebits = torch.tensor(ebits).to(device)
         self.mbits = torch.tensor(mbits).to(device)
         self.emax = torch.tensor(emax).to(device)
@@ -54,9 +54,8 @@ class MXQuantizer(nn.Module):
         self.min_norm = torch.tensor(min_norm).to(device)
         self.scale_ebits = kwargs.pop("scale_ebits", 8)
         self.scale_mbits = kwargs.pop("scale_mbits", 0)
-        self.str_fmt = str(fmt)
+        self.str_format = str(format)
         self.configure(zero_point=zero_point, group_size=group_size, axes=axes)
-        self.enable()
 
     def configure(self, zero_point, group_size, axes):
         self.zero_point = zero_point
@@ -72,7 +71,11 @@ class MXQuantizer(nn.Module):
                 axes=self.axes,
             )
         else:
-            self.shared_axes = [self.axes + 2]
+            if isinstance(self.axes, int):
+                axes = [self.axes]
+            axes = [(i + len(x.shape) - 1 if i < 0 else i) for i in axes]
+            assert all(x >= 0 for x in axes)
+            self.shared_axes = sorted(axes)
 
         if self.zero_point:
             max_val = x.amax(dim=self.axes, keepdim=True)
@@ -106,27 +109,25 @@ class MXQuantizer(nn.Module):
         scales = kwargs.pop("scales", None)
         zeros = kwargs.pop("zeros", None)
 
-        if self.is_enable:
-            x, *meta = _reshape_to_blocks(
-                x,
-                block_size=self.group_size,
-                axes=self.axes,
-            )
+        x, *meta = _reshape_to_blocks(
+            x,
+            block_size=self.group_size,
+            axes=self.axes,
+        )
 
-            if (scales is not None) & (zeros is not None):
-                x_dq = self.fake_quantize(x, scales=scales, zeros=zeros)
-            else:
-                scales, zeros = self.find_params(x, already_reshaped=True)
-                x_dq = self.fake_quantize(x, scales=scales, zeros=zeros)
+        if (scales is not None) & (zeros is not None):
+            x_dq = self.fake_quantize(x, scales=scales, zeros=zeros)
+        else:
+            scales, zeros = self.find_params(x, already_reshaped=True)
+            x_dq = self.fake_quantize(x, scales=scales, zeros=zeros)
 
-            return _undo_reshape_to_blocks(
-                x_dq,
-                padded_shape=meta[-2],
-                orig_shape=meta[1],
-                axes=meta[0],
-                block_size=meta[-1],
-            )
-        return x
+        return _undo_reshape_to_blocks(
+            x_dq,
+            padded_shape=meta[-2],
+            orig_shape=meta[1],
+            axes=meta[0],
+            block_size=meta[-1],
+        )
 
     def fake_quantize(self, x, scales, zeros):
         x = (x - zeros) / scales
@@ -142,15 +143,9 @@ class MXQuantizer(nn.Module):
         )
         return q * scales + zeros
 
-    def enable(self):
-        self.is_enable = True
-
-    def disable(self):
-        self.is_enable = False
-
     def extra_repr(self):
-        s = f"Format: MX{self.str_fmt.split('.')[-1].upper()}, "
-        s += f"Min: {self.min_norm}, Max: {self.max_norm}"
+        s = f"Format: MX{self.str_format.split('.')[-1].upper()}, "
+        s += f"Min: {-self.max_norm}, Max: {self.max_norm}, Axes: {self.axes}"
         return s
 
 
@@ -158,11 +153,11 @@ if __name__ == "__main__":
     torch.manual_seed(0)
 
     device = torch.device("cuda")
-    x = torch.randn(4, 6).to(device=device)
+    x = torch.randn(4, 2, 6).to(device=device)
     print(x)
 
     quantizer = MXQuantizer(
-        fmt=ElemFormat.int4,
+        format=ElemFormat.int4,
         group_size=6,
         axes=-1,
         zero_point=False,
@@ -171,7 +166,7 @@ if __name__ == "__main__":
         scale_mbits=0,
     )
     # quantizer = MXQuantizer(
-    #     fmt=ElemFormat.fp8_e4m3, group_size=32, axes=-1, zero_point=False, device=device,
+    #     format=ElemFormat.fp8_e4m3, group_size=32, axes=-1, zero_point=False, device=device,
     #     scale_ebits=8, scale_mbits = 1,
     # )
     print(quantizer)

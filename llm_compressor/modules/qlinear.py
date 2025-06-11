@@ -1,5 +1,6 @@
 import sys
 from pathlib import Path
+from copy import deepcopy
 
 import torch
 from torch import nn
@@ -17,14 +18,15 @@ class QLinear(nn.Linear):
     def __init__(
         self,
         linear: nn.Linear,
-        q_config=None,
+        quant_config,
+        dtype,
     ):
         super().__init__(
             linear.in_features,
             linear.out_features,
             linear.bias is not None,
             linear.weight.device,
-            linear.weight.dtype,
+            dtype,
         )
         self.train(linear.training)
 
@@ -33,47 +35,68 @@ class QLinear(nn.Linear):
             if self.bias is not None:
                 self.bias.copy_(linear.bias)
 
-        self.q_config = q_config.linear
-        self.q_type = self.q_config.type  # {input:-, weight:-, output:-, bias:-}
-        self.bit_config = (
-            self.q_config.bit_config
-        )  # {input:-, weight:-, output:-, bias:-}
+        self.quant_config = quant_config
+        self.input_quantizer = FakeQuantizer.build(**self.quant_config.act_in)
+        self.weight_quantizer = FakeQuantizer.build(**self.quant_config.weight)
+        self.output_quantizer = FakeQuantizer.build(**self.quant_config.act_out)
 
-        self.input_quantizer = FakeQuantizer.build(
-            self.q_type.input, **self.bit_config.input
-        )
-        self.weight_quantizer = FakeQuantizer.build(
-            self.q_type.weight, **self.bit_config.weight
-        )
-        self.bias_quantizer = FakeQuantizer.build(
-            self.q_type.bias, **self.bit_config.bias
-        )
-        self.output_quantizer = FakeQuantizer.build(
-            self.q_type.output, **self.bit_config.output
-        )
-
-        if self.weight_quantizer is not None:
-            self.weight = self.weight_quantizer(self.weight)
-
-        if self.bias_quantizer is not None and self.bias is not None:
-            self.bias = self.bias_quantizer(self.bias)
+        if self.bias is not None:
+            self.quant_config.bias = deepcopy(self.quant_config.weight)
+            self.quant_config.bias.update({"device": torch.device("cpu")})
+            self.bias_quantizer = FakeQuantizer.build(**self.quant_config.bias)
+            self.bias.data = self.bias_quantizer(self.bias.data)
+            del self.bias_quantizer
+            torch.cuda.empty_cache()
 
     def forward(self, inputs: Tensor) -> Tensor:
         """Forward with quantized weight if available."""
-        return self.output_quantizer(F.linear(inputs, self.weight, self.bias))
+        return self.output_quantizer(
+            F.linear(self.input_quantizer(inputs), self.weight, self.bias)
+        )
 
     def extra_repr(self):
-        s = self.__class__.__name__
-        s += f"(in_features={self.in_features}, out_features={self.out_features}, "
-        s += f"bias={self.bias is not None})\n"
-        s += f"Input Quant: {self.input_quantizer}\n"
-        s += f"Weight Quant: {self.weight_quantizer}\n"
-        s += f"Bias Quant: {self.bias_quantizer}\n"
-        s += f"Output Quant: {self.output_quantizer}"
+        s = f"(in_features={self.in_features}, "
+        s += f"out_features={self.out_features}, "
+        s += f"bias={self.bias is not None})"
         return s
 
 
 if __name__ == "__main__":
-    linear = nn.Linear(6, 4)
-    qlinear = QLinear(linear=linear)
+    import torch
+    from easydict import EasyDict
+
+    device = torch.device("cuda:0")
+    quant_config = EasyDict({})
+    quant_config.weight = {
+        "type": "int",
+        "format": "int4",
+        "group_size": -1,
+        "axes": -1,
+        "zero_point": False,
+        "device": device,
+    }
+    quant_config.act_in = {
+        "type": "int",
+        "format": "int8",
+        "group_size": -1,
+        "axes": -1,
+        "zero_point": False,
+        "device": device,
+    }
+    quant_config.act_out = {
+        "type": "int",
+        "format": "int8",
+        "group_size": -1,
+        "axes": -1,
+        "zero_point": False,
+        "device": device,
+    }
+    linear = nn.Linear(6, 4, bias=False).to(device)
+    qlinear = QLinear(
+        linear=linear, quant_config=quant_config, dtype=linear.weight.dtype
+    )
     print(qlinear)
+    x = torch.randn(4, 6).to(device)
+    qlinear.weight.data = qlinear.weight_quantizer(qlinear.weight.data)
+    y = qlinear(x)
+    print(y)
