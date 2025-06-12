@@ -20,9 +20,11 @@ PATH = Path(__file__).resolve().parents[1]
 if str(PATH) not in sys.path:
     sys.path.append(str(PATH))
 
+from utils.general import LOGGER  # noqa: E402
 from models.base import CompressForCausalLM  # noqa: E402
 from modules.qmatmul import QMatmul  # noqa: E402
 from modules.qlinear import QLinear  # noqa: E402
+from prune.magnitude.core import magnitude  # noqa: E402
 from quantization.calibrations.rtn.core import rtn  # noqa: E402
 
 
@@ -147,15 +149,24 @@ class CompressLlamaForCausalLM(LlamaForCausalLM, CompressForCausalLM):
                 setattr(parent_module, child_name, qattn)
 
         for name, module in self.named_modules():
-            if isinstance(module, nn.Linear) and "lm_head" not in name:
-                parent, child_name = name.rsplit(".", 1)
-                parent_module = dict(self.named_modules())[parent]
-                qlinear = QLinear(
-                    linear=getattr(parent_module, child_name),
-                    quant_config=quant_config.linear,
-                    dtype=self.dtype,
-                )
-                setattr(parent_module, child_name, qlinear)
+            if isinstance(module, nn.Linear):
+                if "lm_head" not in name:
+                    parent, child_name = name.rsplit(".", 1)
+                    parent_module = dict(self.named_modules())[parent]
+                    qlinear = QLinear(
+                        linear=getattr(parent_module, child_name),
+                        quant_config=quant_config.linear,
+                        dtype=self.dtype,
+                    )
+                    setattr(parent_module, child_name, qlinear)
+                if "lm_head" in name:
+                    head_module = dict(self.named_modules())[name]
+                    qlinear = QLinear(
+                        linear=head_module,
+                        quant_config=quant_config.head,
+                        dtype=self.dtype,
+                    )
+                    setattr(self, name, qlinear)
 
     def quantize(self, tokenizer, quant_method, quant_config, device, **kwargs):
         if kwargs.get("quantize"):
@@ -168,9 +179,18 @@ class CompressLlamaForCausalLM(LlamaForCausalLM, CompressForCausalLM):
             return
 
     def prune(self, tokenizer, prune_method, prune_config, device, **kwargs):
-        pass
+        if kwargs.get("prune"):
+            sparsity_ratio = prune_config.pop("sparsity_ratio")
+
+            if prune_method == "magnitude":
+                magnitude(self, device, sparsity_ratio)
+                return
+        else:
+            return
 
     def save_compressed(self, base_model_path, local_save_path):
+        LOGGER.info("Saving compressed model...")
+
         with init_empty_weights():
             tokenizer = AutoTokenizer.from_pretrained(base_model_path)
             base_model = LlamaForCausalLM.from_pretrained(
@@ -188,6 +208,7 @@ class CompressLlamaForCausalLM(LlamaForCausalLM, CompressForCausalLM):
             state_dict=compressed_sd,
         )
         tokenizer.save_pretrained(local_save_path)
+        LOGGER.info(f"Save complete ! : {local_save_path}")
 
     def get_layers(self):
         return self.model.layers
@@ -195,20 +216,22 @@ class CompressLlamaForCausalLM(LlamaForCausalLM, CompressForCausalLM):
     def get_sequential(self, mode="true"):
         if mode == "true":
             return [
-                ["self_attn.k_proj", "self_attn.v_proj", "self_attn.q_proj"],
+                ["self_attn.q_proj", "self_attn.k_proj", "self_attn.v_proj"],
                 ["self_attn.o_proj"],
                 ["mlp.up_proj", "mlp.gate_proj"],
                 ["mlp.down_proj"],
             ]
         else:
             return [
-                "self_attn.k_proj",
-                "self_attn.v_proj",
-                "self_attn.q_proj",
-                "self_attn.o_proj",
-                "mlp.up_proj",
-                "mlp.gate_proj",
-                "mlp.down_proj",
+                [
+                    "self_attn.q_proj",
+                    "self_attn.k_proj",
+                    "self_attn.v_proj",
+                    "self_attn.o_proj",
+                    "mlp.up_proj",
+                    "mlp.gate_proj",
+                    "mlp.down_proj",
+                ]
             ]
 
     @property
@@ -269,6 +292,32 @@ if __name__ == "__main__":
         "axes": -1,
         "zero_point": False,
         "device": device,
+    }
+
+    quant_config.head = EasyDict({})
+    quant_config.head.weight = {
+        "type": "int",
+        "format": "int8",
+        "group_size": group_size,
+        "axes": -1,
+        "zero_point": False,
+        "device": device,
+    }
+    quant_config.head.act_in = {
+        "type": None,
+        "format": None,
+        "group_size": None,
+        "axes": None,
+        "zero_point": None,
+        "device": None,
+    }
+    quant_config.head.act_out = {
+        "type": None,
+        "format": None,
+        "group_size": None,
+        "axes": None,
+        "zero_point": None,
+        "device": None,
     }
 
     model_path = "d:\\models\\llama-3.2-1b-it"

@@ -43,7 +43,10 @@ class QMatmul(nn.Module):
     def forward(self, inputs1: Tensor, inputs2: Tensor) -> Tensor:
         """Matrix multiplication with quantized activations if available."""
         return self.output_quantizer(
-            torch.matmul(self.input1_quantizer(inputs1), self.input2_quantizer(inputs2))
+            torch.matmul(
+                self.input1_quantizer(inputs1).to(inputs2),
+                self.input2_quantizer(inputs2),
+            )
         )
 
 

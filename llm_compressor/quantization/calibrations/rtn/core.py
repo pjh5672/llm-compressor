@@ -34,17 +34,15 @@ def rtn(model, device):
 
             for name in subset:
                 W = subset[name].weight.data
-                print(W.shape)
                 subset[name].weight.data = subset[name].weight_quantizer(W)
                 del subset[name].weight_quantizer
-                torch.cuda.empty_cache()
 
         layers[i] = layer.cpu()
         del layer
         torch.cuda.empty_cache()
 
     model.config.use_cache = use_cache
-    LOGGER.debug("Quantization Complete!")
+    LOGGER.info("Quantization complete !")
     return
 
 

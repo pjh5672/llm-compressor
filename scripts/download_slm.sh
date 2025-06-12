@@ -24,3 +24,8 @@ huggingface-cli.exe download microsoft/phi-2 --local-dir ./phi-2
 # llama3
 huggingface-cli.exe download meta-llama/Llama-3.2-1B-Instruct --local-dir ./llama-3.2-1b-it
 huggingface-cli.exe download meta-llama/Llama-3.2-3B-Instruct --local-dir ./llama-3.2-3b-it
+
+# qwen
+huggingface-cli.exe download Qwen/Qwen2.5-0.5B-Instruct --local-dir ./qwen2.5-0.5b-it
+huggingface-cli.exe download Qwen/Qwen3-1.7B --local-dir ./qwen3-1.7b
+huggingface-cli.exe download Qwen/Qwen3-4B --local-dir ./qwen3-4b

@@ -8,7 +8,7 @@ from transformers import AutoTokenizer
 from accelerate import init_empty_weights
 from transformers.cache_utils import Cache
 from transformers.models.phi.modeling_phi import (
-    PhiAttention, 
+    PhiAttention,
     PhiForCausalLM,
     repeat_kv,
     apply_rotary_pos_emb,
@@ -18,10 +18,12 @@ PATH = Path(__file__).resolve().parents[1]
 if str(PATH) not in sys.path:
     sys.path.append(str(PATH))
 
-from models.base import CompressForCausalLM # noqa: E402
-from modules.qmatmul import QMatmul # noqa: E402
-from modules.qlinear import QLinear # noqa: E402
-from quantization.calibrations.rtn.core import rtn # noqa: E402
+from utils.general import LOGGER  # noqa: E402
+from models.base import CompressForCausalLM  # noqa: E402
+from modules.qmatmul import QMatmul  # noqa: E402
+from modules.qlinear import QLinear  # noqa: E402
+from prune.magnitude.core import magnitude  # noqa: E402
+from quantization.calibrations.rtn.core import rtn  # noqa: E402
 
 
 def eager_attention_forward(
@@ -45,13 +47,16 @@ def eager_attention_forward(
         causal_mask = attention_mask[:, :, :, : key_states.shape[-2]]
         attn_weights = attn_weights + causal_mask
 
-    attn_weights = nn.functional.softmax(attn_weights, dim=-1, dtype=torch.float32).to(query.dtype)
-    attn_weights = nn.functional.dropout(attn_weights, p=dropout, training=module.training)
+    attn_weights = nn.functional.softmax(attn_weights, dim=-1, dtype=torch.float32).to(
+        query.dtype
+    )
+    attn_weights = nn.functional.dropout(
+        attn_weights, p=dropout, training=module.training
+    )
     attn_output = sv_matmul(attn_weights, value_states)
     attn_output = attn_output.transpose(1, 2).contiguous()
 
     return attn_output, attn_weights
-
 
 
 class QuantPhiAttention(PhiAttention):
@@ -114,7 +119,9 @@ class QuantPhiAttention(PhiAttention):
         if past_key_value is not None:
             # sin and cos are specific to RoPE models; cache_position needed for the static cache
             cache_kwargs = {"sin": sin, "cos": cos, "cache_position": cache_position}
-            key_states, value_states = past_key_value.update(key_states, value_states, self.layer_idx, cache_kwargs)
+            key_states, value_states = past_key_value.update(
+                key_states, value_states, self.layer_idx, cache_kwargs
+            )
 
         attention_interface: Callable = eager_attention_forward
 
@@ -156,15 +163,24 @@ class CompressPhiForCausalLM(PhiForCausalLM, CompressForCausalLM):
                 setattr(parent_module, child_name, qattn)
 
         for name, module in self.named_modules():
-            if isinstance(module, nn.Linear) and "lm_head" not in name:
-                parent, child_name = name.rsplit(".", 1)
-                parent_module = dict(self.named_modules())[parent]
-                qlinear = QLinear(
-                    linear=getattr(parent_module, child_name),
-                    quant_config=quant_config.linear,
-                    dtype=self.dtype,
-                )
-                setattr(parent_module, child_name, qlinear)
+            if isinstance(module, nn.Linear):
+                if "lm_head" not in name:
+                    parent, child_name = name.rsplit(".", 1)
+                    parent_module = dict(self.named_modules())[parent]
+                    qlinear = QLinear(
+                        linear=getattr(parent_module, child_name),
+                        quant_config=quant_config.linear,
+                        dtype=self.dtype,
+                    )
+                    setattr(parent_module, child_name, qlinear)
+                if "lm_head" in name:
+                    head_module = dict(self.named_modules())[name]
+                    qlinear = QLinear(
+                        linear=head_module,
+                        quant_config=quant_config.head,
+                        dtype=self.dtype,
+                    )
+                    setattr(self, name, qlinear)
 
     def quantize(self, tokenizer, quant_method, quant_config, device, **kwargs):
         if kwargs.get("quantize"):
@@ -177,9 +193,18 @@ class CompressPhiForCausalLM(PhiForCausalLM, CompressForCausalLM):
             return
 
     def prune(self, tokenizer, prune_method, prune_config, device, **kwargs):
-        pass
+        if kwargs.get("prune"):
+            sparsity_ratio = prune_config.pop("sparsity_ratio")
+
+            if prune_method == "magnitude":
+                magnitude(self, device, sparsity_ratio)
+                return
+        else:
+            return
 
     def save_compressed(self, base_model_path, local_save_path):
+        LOGGER.info("Saving compressed model...")
+
         with init_empty_weights():
             tokenizer = AutoTokenizer.from_pretrained(base_model_path)
             base_model = PhiForCausalLM.from_pretrained(
@@ -197,6 +222,7 @@ class CompressPhiForCausalLM(PhiForCausalLM, CompressForCausalLM):
             state_dict=compressed_sd,
         )
         tokenizer.save_pretrained(local_save_path)
+        LOGGER.info(f"Save complete ! : {local_save_path}")
 
     def get_layers(self):
         return self.model.layers
@@ -204,19 +230,21 @@ class CompressPhiForCausalLM(PhiForCausalLM, CompressForCausalLM):
     def get_sequential(self, mode="true"):
         if mode == "true":
             return [
-                ["self_attn.k_proj", "self_attn.v_proj", "self_attn.q_proj"],
+                ["self_attn.q_proj", "self_attn.k_proj", "self_attn.v_proj"],
                 ["self_attn.dense"],
                 ["mlp.fc1"],
                 ["mlp.fc2"],
             ]
         else:
             return [
-                "self_attn.k_proj",
-                "self_attn.v_proj",
-                "self_attn.q_proj",
-                "self_attn.dense",
-                "mlp.fc1", 
-                "mlp.fc2",
+                [
+                    "self_attn.q_proj",
+                    "self_attn.k_proj",
+                    "self_attn.v_proj",
+                    "self_attn.dense",
+                    "mlp.fc1",
+                    "mlp.fc2",
+                ]
             ]
 
     @property
@@ -277,6 +305,32 @@ if __name__ == "__main__":
         "axes": -1,
         "zero_point": False,
         "device": device,
+    }
+
+    quant_config.head = EasyDict({})
+    quant_config.head.weight = {
+        "type": "int",
+        "format": "int8",
+        "group_size": group_size,
+        "axes": -1,
+        "zero_point": False,
+        "device": device,
+    }
+    quant_config.head.act_in = {
+        "type": None,
+        "format": None,
+        "group_size": None,
+        "axes": None,
+        "zero_point": None,
+        "device": None,
+    }
+    quant_config.head.act_out = {
+        "type": None,
+        "format": None,
+        "group_size": None,
+        "axes": None,
+        "zero_point": None,
+        "device": None,
     }
 
     model_path = "d:\\models\\phi-1.5"

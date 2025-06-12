@@ -3,22 +3,10 @@ from torch import nn
 
 if __package__:
     from .formats import ElemFormat, _get_format_params
-    from .utils import (
-        _reshape_to_blocks,
-        _undo_reshape_to_blocks,
-        _safe_lshift,
-        _round_mantissa,
-        _safe_rshift,
-    )
+    from .utils import _reshape_to_blocks, _undo_reshape_to_blocks
 else:
     from formats import ElemFormat, _get_format_params
-    from utils import (
-        _reshape_to_blocks,
-        _undo_reshape_to_blocks,
-        _safe_lshift,
-        _round_mantissa,
-        _safe_rshift,
-    )
+    from utils import _reshape_to_blocks, _undo_reshape_to_blocks
 
 
 class FPQuantizer(nn.Module):
@@ -61,7 +49,7 @@ class FPQuantizer(nn.Module):
         self.ebits = torch.tensor(ebits)
         self.mbits = torch.tensor(mbits)
         self.emax = torch.tensor(emax)
-        self.max_norm = torch.tensor(max_norm)
+        self.max_norm = torch.tensor(max_norm).to(device)
         self.min_norm = torch.tensor(min_norm)
         self.str_format = str(format)
         self.configure(zero_point=zero_point, group_size=group_size, axes=axes)
@@ -152,10 +140,11 @@ class FPQuantizer(nn.Module):
         return x_dq
 
     def fake_quantize(self, x, scales, zeros):
-        q = (x - zeros) / scales
-        q = _safe_lshift(q, self.mbits - 2, self.emax)
-        q = _round_mantissa(q, self.mbits, round="nearest", clamp=False)
-        q = _safe_rshift(q, self.mbits - 2, self.emax)
+        # Refer to https://github.com/Qualcomm-AI-research/FP8-quantization
+        x_ = ((x - zeros) / scales).clamp(min=-self.max_norm, max=self.max_norm)
+        log_scales = (x_.abs().log2() + self.emax).floor().clamp(1.0)
+        inv_scales = 2 ** (log_scales - (self.mbits - 2) - self.emax)
+        q = (x_ / inv_scales).round() * inv_scales
         return q * scales + zeros
 
     def extra_repr(self):

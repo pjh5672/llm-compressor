@@ -1,6 +1,5 @@
 import sys
 from pathlib import Path
-from copy import deepcopy
 
 import torch
 from torch import nn
@@ -39,14 +38,6 @@ class QLinear(nn.Linear):
         self.input_quantizer = FakeQuantizer.build(**self.quant_config.act_in)
         self.weight_quantizer = FakeQuantizer.build(**self.quant_config.weight)
         self.output_quantizer = FakeQuantizer.build(**self.quant_config.act_out)
-
-        if self.bias is not None:
-            self.quant_config.bias = deepcopy(self.quant_config.weight)
-            self.quant_config.bias.update({"device": torch.device("cpu")})
-            self.bias_quantizer = FakeQuantizer.build(**self.quant_config.bias)
-            self.bias.data = self.bias_quantizer(self.bias.data)
-            del self.bias_quantizer
-            torch.cuda.empty_cache()
 
     def forward(self, inputs: Tensor) -> Tensor:
         """Forward with quantized weight if available."""

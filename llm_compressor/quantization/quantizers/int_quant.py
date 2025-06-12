@@ -41,7 +41,7 @@ class INTQuantizer(nn.Module, BaseQuantizer):
         """
         super().__init__()
 
-        assert format in (ElemFormat.int4, ElemFormat.int8, ElemFormat.int32), (
+        assert format in (ElemFormat.int4, ElemFormat.int8), (
             f"Not support Format for {self.__class__.__name__}"
         )
         _, self.q_bits, _, max_norm, _ = _get_format_params(format)
@@ -84,7 +84,7 @@ class INTQuantizer(nn.Module, BaseQuantizer):
                 max_val = x.amax(dim=self.axes, keepdim=True)
                 min_val = x.amin(dim=self.axes, keepdim=True)
                 scales = (max_val - min_val) / (self.q_max - self.q_min)
-                zeros = (max_val + min_val) / 2
+                zeros = (self.q_min - min_val / scales).round()
             else:
                 max_val = x.abs().amax(dim=self.axes, keepdim=True)
                 scales = max_val / self.q_max
@@ -94,14 +94,14 @@ class INTQuantizer(nn.Module, BaseQuantizer):
                 max_val = x.amax()
                 min_val = x.amin()
                 scales = (max_val - min_val) / (self.q_max - self.q_min)
-                zeros = (max_val + min_val) / 2
+                zeros = (self.q_min - min_val / scales).round()
             else:
                 max_val = x.abs().amax()
                 scales = max_val / self.q_max
                 zeros = torch.tensor(0)
 
+        scales.clamp_(min=1e-5)
         assert torch.isnan(scales).sum() == 0
-
         return scales.to(dtype), zeros.to(dtype)
 
     def forward(self, x, **kwargs):
@@ -137,9 +137,8 @@ class INTQuantizer(nn.Module, BaseQuantizer):
         return x_dq
 
     def fake_quantize(self, x, scales, zeros):
-        q = torch.round((x - zeros) / scales)
-        q = torch.clamp(q, self.q_min, self.q_max)
-        return q * scales + zeros
+        q = (x / scales + zeros).round().clamp(min=self.q_min, max=self.q_max)
+        return (q - zeros) * scales
 
     def extra_repr(self):
         s = f"Format: {self.str_format.split('.')[-1].upper()}, "

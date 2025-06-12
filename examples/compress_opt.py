@@ -22,13 +22,22 @@ model = CompressOPTForCausalLM.from_pretrained(
     device_map="cpu",
 )
 
-############### Model Compression ###############
-model.quantize(
-    None, 
-    quant_method="rtn", 
-    quant_config=args.quant_config, 
+############### Model Pruning ###############
+model.prune(
+    None,
+    prune_method=args.prune_method,
+    prune_config=args.prune_config,
     device=device,
-    quantize=args.quantize
+    prune=args.prune,
+)
+
+############### Model Quantization ###############
+model.quantize(
+    None,
+    quant_method=args.quant_method,
+    quant_config=args.quant_config,
+    device=device,
+    quantize=args.quantize,
 )
 
 ############### Model Evaluation ###############
@@ -40,4 +49,7 @@ eval_kwargs = {
 }
 results = evaluator.eval(model, tasks=args.tasks, **eval_kwargs)
 print_eval(results)
-    
+
+############### Model Saving ###############
+if args.save_path is not None:
+    model.save_compressed(args.model, args.save_path)

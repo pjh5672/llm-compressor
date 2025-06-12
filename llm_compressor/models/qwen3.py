@@ -9,9 +9,9 @@ from accelerate import init_empty_weights
 from transformers.cache_utils import Cache
 from transformers.processing_utils import Unpack
 from transformers.modeling_flash_attention_utils import FlashAttentionKwargs
-from transformers.models.gemma.modeling_gemma import (
-    GemmaAttention,
-    GemmaForCausalLM,
+from transformers.models.qwen3.modeling_qwen3 import (
+    Qwen3Attention,
+    Qwen3ForCausalLM,
     repeat_kv,
     apply_rotary_pos_emb,
 )
@@ -20,9 +20,11 @@ PATH = Path(__file__).resolve().parents[1]
 if str(PATH) not in sys.path:
     sys.path.append(str(PATH))
 
+from utils.general import LOGGER  # noqa: E402
 from models.base import CompressForCausalLM  # noqa: E402
 from modules.qmatmul import QMatmul  # noqa: E402
 from modules.qlinear import QLinear  # noqa: E402
+from prune.magnitude.core import magnitude  # noqa: E402
 from quantization.calibrations.rtn.core import rtn  # noqa: E402
 
 
@@ -59,12 +61,12 @@ def eager_attention_forward(
     return attn_output, attn_weights
 
 
-class QuantGemmaAttention(GemmaAttention):
+class QuantQwen3Attention(Qwen3Attention):
     """Multi-headed attention from 'Attention Is All You Need' paper"""
 
     def __init__(
         self,
-        attention: GemmaAttention,
+        attention: Qwen3Attention,
         quant_config,
     ):
         super().__init__(
@@ -78,6 +80,9 @@ class QuantGemmaAttention(GemmaAttention):
         self.k_proj = attention.k_proj
         self.v_proj = attention.v_proj
         self.o_proj = attention.o_proj
+        self.q_norm = attention.q_norm
+        self.k_norm = attention.k_norm
+        self.sliding_window = attention.sliding_window
 
     def forward(
         self,
@@ -91,8 +96,12 @@ class QuantGemmaAttention(GemmaAttention):
         input_shape = hidden_states.shape[:-1]
         hidden_shape = (*input_shape, -1, self.head_dim)
 
-        query_states = self.q_proj(hidden_states).view(hidden_shape).transpose(1, 2)
-        key_states = self.k_proj(hidden_states).view(hidden_shape).transpose(1, 2)
+        query_states = self.q_norm(
+            self.q_proj(hidden_states).view(hidden_shape)
+        ).transpose(1, 2)
+        key_states = self.k_norm(
+            self.k_proj(hidden_states).view(hidden_shape)
+        ).transpose(1, 2)
         value_states = self.v_proj(hidden_states).view(hidden_shape).transpose(1, 2)
 
         cos, sin = position_embeddings
@@ -117,6 +126,7 @@ class QuantGemmaAttention(GemmaAttention):
             attention_mask,
             dropout=0.0 if not self.training else self.attention_dropout,
             scaling=self.scaling,
+            sliding_window=self.sliding_window,  # diff with Llama
             qk_matmul=self.qk_matmul,
             sv_matmul=self.sv_matmul,
             **kwargs,
@@ -127,7 +137,7 @@ class QuantGemmaAttention(GemmaAttention):
         return attn_output, attn_weights
 
 
-class CompressGemmaForCausalLM(GemmaForCausalLM, CompressForCausalLM):
+class CompressQwen3ForCausalLM(Qwen3ForCausalLM, CompressForCausalLM):
     def __init__(
         self,
         config,
@@ -137,25 +147,34 @@ class CompressGemmaForCausalLM(GemmaForCausalLM, CompressForCausalLM):
 
     def _prepare_attention_module(self, quant_config):
         for name, module in self.named_modules():
-            if isinstance(module, GemmaAttention):
+            if isinstance(module, Qwen3Attention):
                 parent, child_name = name.rsplit(".", 1)
                 parent_module = dict(self.named_modules())[parent]
-                qattn = QuantGemmaAttention(
+                qattn = QuantQwen3Attention(
                     attention=getattr(parent_module, child_name),
                     quant_config=quant_config.matmul,
                 )
                 setattr(parent_module, child_name, qattn)
 
         for name, module in self.named_modules():
-            if isinstance(module, nn.Linear) and "lm_head" not in name:
-                parent, child_name = name.rsplit(".", 1)
-                parent_module = dict(self.named_modules())[parent]
-                qlinear = QLinear(
-                    linear=getattr(parent_module, child_name),
-                    quant_config=quant_config.linear,
-                    dtype=self.dtype,
-                )
-                setattr(parent_module, child_name, qlinear)
+            if isinstance(module, nn.Linear):
+                if "lm_head" not in name:
+                    parent, child_name = name.rsplit(".", 1)
+                    parent_module = dict(self.named_modules())[parent]
+                    qlinear = QLinear(
+                        linear=getattr(parent_module, child_name),
+                        quant_config=quant_config.linear,
+                        dtype=self.dtype,
+                    )
+                    setattr(parent_module, child_name, qlinear)
+                if "lm_head" in name:
+                    head_module = dict(self.named_modules())[name]
+                    qlinear = QLinear(
+                        linear=head_module,
+                        quant_config=quant_config.head,
+                        dtype=self.dtype,
+                    )
+                    setattr(self, name, qlinear)
 
     def quantize(self, tokenizer, quant_method, quant_config, device, **kwargs):
         if kwargs.get("quantize"):
@@ -168,12 +187,21 @@ class CompressGemmaForCausalLM(GemmaForCausalLM, CompressForCausalLM):
             return
 
     def prune(self, tokenizer, prune_method, prune_config, device, **kwargs):
-        pass
+        if kwargs.get("prune"):
+            sparsity_ratio = prune_config.pop("sparsity_ratio")
+
+            if prune_method == "magnitude":
+                magnitude(self, device, sparsity_ratio)
+                return
+        else:
+            return
 
     def save_compressed(self, base_model_path, local_save_path):
+        LOGGER.info("Saving compressed model...")
+
         with init_empty_weights():
             tokenizer = AutoTokenizer.from_pretrained(base_model_path)
-            base_model = GemmaForCausalLM.from_pretrained(
+            base_model = Qwen3ForCausalLM.from_pretrained(
                 base_model_path, low_cpu_mem_usage=True
             )
 
@@ -182,12 +210,13 @@ class CompressGemmaForCausalLM(GemmaForCausalLM, CompressForCausalLM):
             if k not in ("_embed_tokens.weight"):
                 compressed_sd[k] = v
 
-        GemmaForCausalLM.save_pretrained(
+        Qwen3ForCausalLM.save_pretrained(
             base_model,
             local_save_path,
             state_dict=compressed_sd,
         )
         tokenizer.save_pretrained(local_save_path)
+        LOGGER.info(f"Save complete ! : {local_save_path}")
 
     def get_layers(self):
         return self.model.layers
@@ -195,20 +224,22 @@ class CompressGemmaForCausalLM(GemmaForCausalLM, CompressForCausalLM):
     def get_sequential(self, mode="true"):
         if mode == "true":
             return [
-                ["self_attn.k_proj", "self_attn.v_proj", "self_attn.q_proj"],
+                ["self_attn.q_proj", "self_attn.k_proj", "self_attn.v_proj"],
                 ["self_attn.o_proj"],
                 ["mlp.up_proj", "mlp.gate_proj"],
                 ["mlp.down_proj"],
             ]
         else:
             return [
-                "self_attn.k_proj",
-                "self_attn.v_proj",
-                "self_attn.q_proj",
-                "self_attn.o_proj",
-                "mlp.up_proj",
-                "mlp.gate_proj",
-                "mlp.down_proj",
+                [
+                    "self_attn.q_proj",
+                    "self_attn.k_proj",
+                    "self_attn.v_proj",
+                    "self_attn.o_proj",
+                    "mlp.up_proj",
+                    "mlp.gate_proj",
+                    "mlp.down_proj",
+                ]
             ]
 
     @property
@@ -271,8 +302,34 @@ if __name__ == "__main__":
         "device": device,
     }
 
-    model_path = "d:\\models\\gemma-2b-it"
-    model = CompressGemmaForCausalLM.from_pretrained(
+    quant_config.head = EasyDict({})
+    quant_config.head.weight = {
+        "type": "int",
+        "format": "int8",
+        "group_size": group_size,
+        "axes": -1,
+        "zero_point": False,
+        "device": device,
+    }
+    quant_config.head.act_in = {
+        "type": None,
+        "format": None,
+        "group_size": None,
+        "axes": None,
+        "zero_point": None,
+        "device": None,
+    }
+    quant_config.head.act_out = {
+        "type": None,
+        "format": None,
+        "group_size": None,
+        "axes": None,
+        "zero_point": None,
+        "device": None,
+    }
+
+    model_path = "d:\\models\\qwen3-1.7b"
+    model = CompressQwen3ForCausalLM.from_pretrained(
         model_path,
         attn_implementation="eager",
         torch_dtype=torch.bfloat16,

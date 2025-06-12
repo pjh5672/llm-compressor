@@ -23,16 +23,27 @@ from utils.general import (
 from utils.torch_utils import select_device  # noqa: E402
 
 
+class PruneConfigParser:
+    def __init__(self):
+        self.prune_config = EasyDict({})
+
+    def build_cfg(self, sparsity, **kwargs):
+        self.prune_config.sparsity_ratio = sparsity
+        return self.prune_config
+
+
 class QuantConfigParser:
     def __init__(self, device):
         self.device = device
         self.quant_config = EasyDict({})
         self.linear = {}
         self.matmul = {}
+        self.head = {}
 
-    def build_cfg(self, weight, act_in, act_out):
+    def build_cfg(self, weight, act_in, act_out, head):
         self.get_linear(weight, act_in, act_out)
         self.get_matmul(act_in, act_out)
+        self.get_head(head)
         return self.quant_config
 
     def get_linear(self, weight, act_in, act_out):
@@ -45,6 +56,12 @@ class QuantConfigParser:
         self.matmul["act_in"] = self.parse_config(act_in)
         self.matmul["act_out"] = self.parse_config(act_out)
         self.quant_config.matmul = self.matmul
+
+    def get_head(self, head):
+        self.head["weight"] = self.parse_config(head)
+        self.head["act_in"] = self.parse_config(None)
+        self.head["act_out"] = self.parse_config(None)
+        self.quant_config.head = self.head
 
     def define_qtype(self, fmt):
         if "mx" in fmt:
@@ -143,9 +160,21 @@ def build_parser(root_dir):
         """,
     )
 
+    parser.add_argument(
+        "--head",
+        type=str,
+        default=None,
+        help="""Quantization config for head weight, 
+        following pattern of [type]-[group_size]-[zero_point]-[quant_wise]. 
+        (e.g. 'int8-g[-1]-zp-rw' means int8-asymetric-per_token quant)
+        """,
+    )
+
     parser.add_argument("--prune", action="store_true", help="enable to prune model")
 
     parser.add_argument("--prune-method", type=str, default=None, help="Prune method")
+
+    parser.add_argument("--sparsity", type=float, default=0.0, help="Sparsity ratio")
 
     parser.add_argument(
         "--calib-data", type=str, default="wiki2", help="Calibration dataset"
@@ -155,7 +184,9 @@ def build_parser(root_dir):
         "--calib-num", type=int, default=128, help="Number of calibration dataset"
     )
 
-    parser.add_argument("--save", action="store_true", help="Save to compressed model")
+    parser.add_argument(
+        "--save-path", type=str, default=None, help="Path to save compressed model"
+    )
 
     parser.add_argument("--tasks", type=str, default="ppl", help="Evaluation tasks")
 
@@ -193,8 +224,12 @@ def build_parser(root_dir):
     device = select_device(device=args.device, batch_size=args.batch_size)
     LOGGER.add(args.exp_dir / f"{file_date()}.log", level="DEBUG")
 
-    parser = QuantConfigParser(device)
-    args.quant_config = parser.build_cfg(args.weight, args.act_in, args.act_out)
+    pparser = PruneConfigParser()
+    args.prune_config = pparser.build_cfg(sparsity=args.sparsity)
+    qparser = QuantConfigParser(device)
+    args.quant_config = qparser.build_cfg(
+        args.weight, args.act_in, args.act_out, args.head
+    )
     print_args(
         args=args, exclude_keys=("exp_dir", "save_dir", "quant_config"), logger=LOGGER
     )

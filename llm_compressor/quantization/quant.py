@@ -25,8 +25,6 @@ def create_fmt_ctx(fmt):
         return ElemFormat.fp8_e4m3
     elif fmt == "fp8_e5m2":
         return ElemFormat.fp8_e5m2
-    elif fmt == "int32":
-        return ElemFormat.int32
     else:
         raise RuntimeError(f"Invalid format, got {fmt}")
 

@@ -14,7 +14,6 @@ class ElemFormat(Enum):
     fp4_e2m1 = 3
     fp8_e4m3 = 4
     fp8_e5m2 = 5
-    int32 = 6
 
     @staticmethod
     def from_str(s):
@@ -78,9 +77,6 @@ def _get_format_params(fmt):
         ebits, mbits = 5, 4
         emax = 2 ** (ebits - 1) - 1
 
-    elif fmt == ElemFormat.int32:
-        ebits, mbits = 0, 32
-        emax = 0
     else:
         raise Exception("Unknown element format %s" % fmt)
 
@@ -112,4 +108,3 @@ if __name__ == "__main__":
     cprint(ElemFormat.fp4_e2m1, _get_format_params(ElemFormat.fp4_e2m1))
     cprint(ElemFormat.fp8_e4m3, _get_format_params(ElemFormat.fp8_e4m3))
     cprint(ElemFormat.fp8_e5m2, _get_format_params(ElemFormat.fp8_e5m2))
-    cprint(ElemFormat.int32, _get_format_params(ElemFormat.int32))

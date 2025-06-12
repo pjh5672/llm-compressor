@@ -17,9 +17,11 @@ PATH = Path(__file__).resolve().parents[1]
 if str(PATH) not in sys.path:
     sys.path.append(str(PATH))
 
+from utils.general import LOGGER  # noqa: E402
 from models.base import CompressForCausalLM  # noqa: E402
 from modules.qmatmul import QMatmul  # noqa: E402
 from modules.qlinear import QLinear  # noqa: E402
+from prune.magnitude.core import magnitude  # noqa: E402
 from quantization.calibrations.rtn.core import rtn  # noqa: E402
 
 
@@ -158,15 +160,24 @@ class CompressBloomForCausalLM(BloomForCausalLM, CompressForCausalLM):
                 setattr(parent_module, child_name, qattn)
 
         for name, module in self.named_modules():
-            if isinstance(module, nn.Linear) and "lm_head" not in name:
-                parent, child_name = name.rsplit(".", 1)
-                parent_module = dict(self.named_modules())[parent]
-                qlinear = QLinear(
-                    linear=getattr(parent_module, child_name),
-                    quant_config=quant_config.linear,
-                    dtype=self.dtype,
-                )
-                setattr(parent_module, child_name, qlinear)
+            if isinstance(module, nn.Linear):
+                if "lm_head" not in name:
+                    parent, child_name = name.rsplit(".", 1)
+                    parent_module = dict(self.named_modules())[parent]
+                    qlinear = QLinear(
+                        linear=getattr(parent_module, child_name),
+                        quant_config=quant_config.linear,
+                        dtype=self.dtype,
+                    )
+                    setattr(parent_module, child_name, qlinear)
+                if "lm_head" in name:
+                    head_module = dict(self.named_modules())[name]
+                    qlinear = QLinear(
+                        linear=head_module,
+                        quant_config=quant_config.head,
+                        dtype=self.dtype,
+                    )
+                    setattr(self, name, qlinear)
 
     def quantize(self, tokenizer, quant_method, quant_config, device, **kwargs):
         if kwargs.get("quantize"):
@@ -179,9 +190,18 @@ class CompressBloomForCausalLM(BloomForCausalLM, CompressForCausalLM):
             return
 
     def prune(self, tokenizer, prune_method, prune_config, device, **kwargs):
-        pass
+        if kwargs.get("prune"):
+            sparsity_ratio = prune_config.pop("sparsity_ratio")
+
+            if prune_method == "magnitude":
+                magnitude(self, device, sparsity_ratio)
+                return
+        else:
+            return
 
     def save_compressed(self, base_model_path, local_save_path):
+        LOGGER.info("Saving compressed model...")
+
         with init_empty_weights():
             tokenizer = AutoTokenizer.from_pretrained(base_model_path)
             base_model = BloomForCausalLM.from_pretrained(
@@ -198,6 +218,7 @@ class CompressBloomForCausalLM(BloomForCausalLM, CompressForCausalLM):
             state_dict=compressed_sd,
         )
         tokenizer.save_pretrained(local_save_path)
+        LOGGER.info(f"Save complete ! : {local_save_path}")
 
     def get_layers(self):
         return self.transformer.h
@@ -212,10 +233,12 @@ class CompressBloomForCausalLM(BloomForCausalLM, CompressForCausalLM):
             ]
         else:
             return [
-                "self_attention.query_key_value",
-                "self_attention.dense",
-                "mlp.dense_h_to_4h",
-                "mlp.dense_4h_to_h",
+                [
+                    "self_attention.query_key_value",
+                    "self_attention.dense",
+                    "mlp.dense_h_to_4h",
+                    "mlp.dense_4h_to_h",
+                ]
             ]
 
 
@@ -223,7 +246,7 @@ if __name__ == "__main__":
     from easydict import EasyDict
     from evaluation.eval import LMEvaluator
 
-    group_size = 128
+    group_size = -1
     device = torch.device("cuda:0")
     quant_config = EasyDict({})
     quant_config.linear = EasyDict({})
@@ -236,7 +259,7 @@ if __name__ == "__main__":
         "device": device,
     }
     quant_config.linear.act_in = {
-        "type": None,
+        "type": "int",
         "format": "int8",
         "group_size": group_size,
         "axes": -1,
@@ -244,7 +267,7 @@ if __name__ == "__main__":
         "device": device,
     }
     quant_config.linear.act_out = {
-        "type": None,
+        "type": "int",
         "format": "int8",
         "group_size": group_size,
         "axes": -1,
@@ -254,7 +277,7 @@ if __name__ == "__main__":
 
     quant_config.matmul = EasyDict({})
     quant_config.matmul.act_in = {
-        "type": None,
+        "type": "int",
         "format": "int8",
         "group_size": group_size,
         "axes": -1,
@@ -262,12 +285,38 @@ if __name__ == "__main__":
         "device": device,
     }
     quant_config.matmul.act_out = {
-        "type": None,
+        "type": "int",
         "format": "int8",
         "group_size": group_size,
         "axes": -1,
         "zero_point": False,
         "device": device,
+    }
+
+    quant_config.head = EasyDict({})
+    quant_config.head.weight = {
+        "type": "int",
+        "format": "int8",
+        "group_size": group_size,
+        "axes": -1,
+        "zero_point": False,
+        "device": device,
+    }
+    quant_config.head.act_in = {
+        "type": None,
+        "format": None,
+        "group_size": None,
+        "axes": None,
+        "zero_point": None,
+        "device": None,
+    }
+    quant_config.head.act_out = {
+        "type": None,
+        "format": None,
+        "group_size": None,
+        "axes": None,
+        "zero_point": None,
+        "device": None,
     }
 
     model_path = "d:\\models\\bloom-560m"
@@ -283,9 +332,9 @@ if __name__ == "__main__":
         quant_method="rtn",
         quant_config=quant_config,
         device=device,
-        quantize=True,
+        quantize=False,
     )
-
+    print(model)
     evaluator = LMEvaluator(device=device, n_samples=128)
     eval_kwargs = {
         "tokenizer_path": model_path,

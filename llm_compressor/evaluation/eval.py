@@ -12,6 +12,7 @@ if str(ROOT) not in sys.path:
 
 from utils.general import LOGGER  # noqa: E402
 from utils.dataset import get_loaders  # noqa: E402
+from prune.utils import check_sparsity  # noqa: E402
 
 
 class LMEvaluator:
@@ -21,6 +22,7 @@ class LMEvaluator:
 
     def eval(self, model, tasks, **kwargs):
         LOGGER.info("Evaluating compressed model...")
+        check_sparsity(model, self.device)
 
         model.to(self.device)
         results = {}
@@ -41,18 +43,23 @@ class LMEvaluator:
         batch_size = kwargs.get("batch_size", 1)
         acc = self.eval_QA(model=model, tasks=tasks, batch_size=batch_size)
         results.update(acc)
+        LOGGER.info("Evaluation complete !")
         return results
 
     def eval_ppl(self, model, tokenizer_path, datasets, seq_len):
         model.eval()
         ppl = {}
         for dataset in datasets:
+            # try:
             _, testenc = get_loaders(name=dataset, tokenizer_path=tokenizer_path)
             ppl[f"ppl.{dataset}"] = self.compute_ppl(
                 model=model, dataset=testenc, seq_len=seq_len
             )
 
             LOGGER.info(f"PPL[{dataset.upper()}] : {ppl[f'ppl.{dataset}']:.4f}")
+            # except Exception as e:
+            #     ppl[f"ppl.{dataset}"] = sys.maxsize
+            #     LOGGER.error(e)
         return ppl
 
     @torch.no_grad()
@@ -80,15 +87,23 @@ class LMEvaluator:
     def eval_QA(self, model, tasks, batch_size):
         results = {}
         for task in tasks:
-            acc = self.compute_zeroshot(model=model, task=task, batch_size=batch_size)
-            if task == "lambada":
-                results[task] = acc["results"]["lambada_openai"]["acc,none"] * 100
-            elif task == "truthfulqa":
-                results[task] = acc["results"]["truthfulqa_mc1"]["acc,none"] * 100
-            else:
-                results[task] = acc["results"][f"{task}"]["acc,none"] * 100
+            try:
+                acc = self.compute_zeroshot(
+                    model=model, task=task, batch_size=batch_size
+                )
+                if task == "lambada":
+                    results[task] = acc["results"]["lambada_openai"]["acc,none"] * 100
+                elif task == "truthfulqa":
+                    results[task] = acc["results"]["truthfulqa_mc1"]["acc,none"] * 100
+                else:
+                    results[task] = acc["results"][f"{task}"]["acc,none"] * 100
 
                 LOGGER.info(f"QA[{task.upper()}] : {results[task]:.4f}")
+
+            except Exception as e:
+                results[task] = sys.maxsize
+                LOGGER.error(e)
+
         return results
 
     @torch.no_grad()
