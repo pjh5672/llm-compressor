@@ -1,25 +1,33 @@
-# 🧠 LLM Compression Toolkit
+<div align="center">
+
+# LLM Compression Toolkit
+
+  <p>
+    <a><img width="100%" src="assets/banner.jpg" alt="LLM compressor banner"></a>
+  </p>
 
 A lightweight, modular toolkit for compressing Large Language Models (LLMs) using **pruning**, **quantization**, and other efficient compression strategies — designed for both research and deployment.
 
-&#x20;&#x20;
+</div>
 
 ---
 
 ## 🚀 Features
 
-- ✅ **Structured & unstructured pruning** support
-- ✅ **Quantization-aware training (QAT)** & **Post-training quantization (PTQ)**
-- ✅ Support for INT8 / INT4 quantization with ZeroPoint & Per-channel options
+- ✅ Support **Unstructured pruning**
+    + Magnitude pruning
+- ✅ Support **Post-training quantization(PTQ)**
+    + INT / FP / MX format
+    + 4-bit / 8-bit Fake quantizer support
+    + Symmetric / Asymmetric quantization
+    + Per-tensor / Per-token / Per-channel / Per-block scaling options
 - ✅ **Plug-and-play integration** with Hugging Face Transformers
-- ✅ Model size & FLOPs estimator
-- ✅ Export to ONNX / TorchScript / GGUF (coming soon)
 
 ---
 
 ## 🏗️ Supported Architectures
 
--
+- OPT / BLOOM / Llama(1~3) / Phi(1~2) / Qwen(2~4)
 
 ---
 
@@ -35,36 +43,77 @@ pip install -e .
 
 ## 🛠️ Quick Start
 
-### 1. Load Your Model
+#### 1. Get Your Argument
 
 ```python
-from transformers import AutoModelForCausalLM
-from compression_toolkit import Pruner, Quantizer
+from pathlib import Path
 
-model = AutoModelForCausalLM.from_pretrained("tiiuae/falcon-rw-1b")
+import torch
+from transformers import AutoTokenizer
+
+from llm_compressor.utils.args import build_parser
+from llm_compressor.utils.general import print_eval
+from llm_compressor.models.opt import CompressOPTForCausalLM
+from llm_compressor.evaluation.eval import LMEvaluator
+
+ROOT = Path(__file__).resolve().parents[1]
+args, device = build_parser(ROOT)
 ```
 
-### 2. Prune the Model
+#### 2. Load Your Model
 
 ```python
-pruner = Pruner(model)
-pruned_model = pruner.prune(method="magnitude", sparsity=0.5)
+tokenizer = AutoTokenizer.from_pretrained(args.model)
+model = CompressOPTForCausalLM.from_pretrained(
+    args.model,
+    attn_implementation="eager",
+    torch_dtype=torch.bfloat16,
+    device_map="cpu",
+)
 ```
 
-### 3. Quantize the Model
+#### 3. Prune the Model
 
 ```python
-quantizer = Quantizer(pruned_model)
-quantized_model = quantizer.quantize(method="int8", per_channel=True)
+model.prune(
+    tokenizer=None,
+    prune_method=args.prune_method,
+    prune_config=args.prune_config,
+    device=device,
+    prune=args.prune,
+)
 ```
 
-### 4. Save the Compressed Model
+#### 4. Quantize the Model
 
 ```python
-quantized_model.save_pretrained("compressed-model/")
+model.quantize(
+    tokenizer=None,
+    quant_method=args.quant_method,
+    quant_config=args.quant_config,
+    device=device,
+    quantize=args.quantize,
+)
 ```
 
----
+#### 5. Evaluate the Model
+
+```python
+evaluator = LMEvaluator(device=device, n_samples=128)
+eval_kwargs = {
+    "tokenizer_path": args.model,
+    "seq_len": args.seq_len,
+    "batch_size": args.batch_size,
+}
+results = evaluator.eval(model, tasks=args.tasks, **eval_kwargs)
+print_eval(results)
+```
+
+#### 6. Save the model
+```python
+model.save_compressed(args.model, args.save_path)
+```
+
 
 ## 📊 Benchmarking
 
@@ -73,27 +122,6 @@ quantized_model.save_pretrained("compressed-model/")
 | GPT-2 (small)  | 8-bit QAT    | 75%    | +1.8×   | -0.3%        |
 | LLaMA 2 1.3B   | Prune + INT8 | 60%    | +1.5×   | -0.6%        |
 | TinyLlama 1.1B | INT4         | 85%    | +2.2×   | -1.2%        |
-
-> Use `scripts/benchmark.py` to reproduce these results.
-
----
-
-## 📁 Project Structure
-
-```
-llm-compression-toolkit/
-│
-├── compression_toolkit/
-│   ├── pruning/        # Pruning algorithms
-│   ├── quantization/   # Quantization modules
-│   ├── utils/          # Common utilities
-│   └── export/         # Format converters (ONNX, GGUF, etc.)
-│
-├── examples/           # End-to-end use cases
-├── scripts/            # CLI scripts
-├── tests/              # Unit tests
-└── README.md
-```
 
 ---
 
@@ -106,28 +134,12 @@ llm-compression-toolkit/
 
 ---
 
-## 🧪 Research References
-
-- Han et al. ["Deep Compression"](https://arxiv.org/abs/1510.00149)
-- Dettmers et al. ["GPTQ: Accurate Post-Training Quantization"](https://arxiv.org/abs/2210.17323)
-- Frantar et al. ["SparseGPT"](https://arxiv.org/abs/2301.00774)
-
----
-
-## 🤝 Contributing
-
-Pull requests, issues and feature suggestions are welcome!\
-Please refer to [`CONTRIBUTING.md`](CONTRIBUTING.md) to get started.
-
----
-
 ## 🛡 License
 
-Apache 2.0 License © 2025 Your Organization
+GNU GENERAL PUBLIC LICENSE 3.0 License © 2025
 
 ---
 
 ## 🌐 Acknowledgements
 
-This project builds upon ideas from [GPTQ](https://github.com/IST-DASLab/gptq), [BitsAndBytes](https://github.com/TimDettmers/bitsandbytes), and [SparseML](https://github.com/neuralmagic/sparseml).
-
+This project builds upon my personal research 🐯
