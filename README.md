@@ -27,7 +27,7 @@ A lightweight, modular toolkit for compressing Large Language Models (LLMs) usin
 
 ## 🏗️ Supported Architectures
 
-- OPT / BLOOM / Llama(1~3) / Phi(1~2) / Qwen(2~4)
+- OPT / BLOOM / Llama(1, 2, 3) / Phi(1.5, 2) / Qwen(2.5, 3)
 
 ---
 
