@@ -12,7 +12,7 @@ if str(ROOT) not in sys.path:
 
 from utils.general import LOGGER  # noqa: E402
 from utils.dataset import get_loaders  # noqa: E402
-from prune.utils import check_sparsity  # noqa: E402
+from utils.module import check_sparsity  # noqa: E402
 
 
 class LMEvaluator:
@@ -151,10 +151,10 @@ class LMEvaluator:
 
 
 if __name__ == "__main__":
-    from transformers import AutoModelForCausalLM
+    from models.opt import CompressOPTForCausalLM
 
     model_path = r"d:\\models\\opt-350M"
-    model = AutoModelForCausalLM.from_pretrained(
+    model = CompressOPTForCausalLM.from_pretrained(
         model_path,
         torch_dtype=torch.float16,
         device_map="auto",

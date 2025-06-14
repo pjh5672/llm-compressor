@@ -14,12 +14,15 @@ if str(PATH) not in sys.path:
 from utils.general import LOGGER  # noqa: E402
 from utils.dataset import get_calib_dataset  # noqa: E402
 from utils.torch_utils import cleanup_memory  # noqa: E402
-from quantization.calibrations.utils import find_layers  # noqa: E402
+from utils.module import find_layers, get_op_name, append_str_prefix  # noqa: E402
+from quantization.calibrations.awq.auto_scale import auto_scale_block, apply_scale  # noqa: E402
+from quantization.calibrations.awq.auto_clip import auto_clip_block, apply_clip  # noqa: E402
 
 
+@torch.no_grad()
 def awq(model, device, tokenizer, n_samples=512, seq_len=2048):
     LOGGER.info("Quantizing model... [Quant-method : AWQ]")
-
+    model.eval()
     use_cache = model.config.use_cache
     model.config.use_cache = False
     layers = model.get_layers()
@@ -104,25 +107,40 @@ def awq(model, device, tokenizer, n_samples=512, seq_len=2048):
             h.remove()
         # now solve for scaling and clipping
         input_feat = {k: torch.cat(v, dim=0) for k, v in input_feat.items()}
-        
+
         cleanup_memory(verbose=False)
 
         scales_list = auto_scale_block(
                 layer,
                 layer_kwargs,
-                w_bit=w_bit,
-                q_config=q_config,
                 input_feat=input_feat,
             )
 
+        apply_scale(layers[i], scales_list, device, input_feat_dict=input_feat)
+        # append prefix to make names global
+        awq_results["scale"] += append_str_prefix(
+            scales_list, get_op_name(model, layer) + "."
+        )
+    
+        cleanup_memory(verbose=False)
+    
+        clip_list = auto_clip_block(layer, input_feat=input_feat, device=device)
+        apply_clip(layer, clip_list, device=device)
+        
+        # append prefix to make names global
+        awq_results["clip"] += append_str_prefix(
+                clip_list, get_op_name(model, layer) + "."
+        )
 
-    #     layers[i] = layer.cpu()
-    #     del layer
-    #     torch.cuda.empty_cache()
+        layer = layer.cpu()
+        del input_feat
+        cleanup_memory(verbose=False)
 
-    # model.config.use_cache = use_cache
-    # LOGGER.info("Quantization complete !")
-    return
+    model.config.use_cache = use_cache
+    apply_scale(model, awq_results["scale"], device)
+    apply_clip(model, awq_results["clip"], device)
+    LOGGER.info("Quantization complete !")
+    return 
 
 
 if __name__ == "__main__":
@@ -235,5 +253,5 @@ if __name__ == "__main__":
     #     device_map="cpu",
     # )
     model._prepare_attention_module(quant_config)
-    awq(model, device, tokenizer, 128, 512)
-    # print(model)
+    awq_results = awq(model, device, tokenizer, 128, 512)
+    print(awq_results)

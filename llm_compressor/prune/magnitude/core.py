@@ -9,7 +9,7 @@ if str(PATH) not in sys.path:
     sys.path.append(str(PATH))
 
 from utils.general import LOGGER  # noqa: E402
-from quantization.calibrations.utils import find_layers  # noqa: E402
+from utils.module import find_layers  # noqa: E402
 
 
 def magnitude(model, device, sparsity_ratio):

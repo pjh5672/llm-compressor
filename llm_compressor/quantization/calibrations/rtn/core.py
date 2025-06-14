@@ -9,8 +9,8 @@ if str(PATH) not in sys.path:
     sys.path.append(str(PATH))
 
 from utils.general import LOGGER  # noqa: E402
+from utils.module import find_layers  # noqa: E402
 from utils.torch_utils import cleanup_memory  # noqa: E402
-from quantization.calibrations.utils import find_layers  # noqa: E402
 
 
 def rtn(model, device):
@@ -99,14 +99,39 @@ if __name__ == "__main__":
         "zero_point": False,
         "device": device,
     }
+    quant_config.head = EasyDict({})
+    quant_config.head.weight = {
+        "type": "int",
+        "format": "int8",
+        "group_size": -1,
+        "axes": -1,
+        "zero_point": False,
+        "device": device,
+    }
+    quant_config.head.act_in = {
+        "type": None,
+        "format": None,
+        "group_size": None,
+        "axes": None,
+        "zero_point": None,
+        "device": None,
+    }
+    quant_config.head.act_out = {
+        "type": None,
+        "format": None,
+        "group_size": None,
+        "axes": None,
+        "zero_point": None,
+        "device": None,
+    }
 
-    # model_path = "d:\\models\\opt-125m"
-    # model = CompressOPTForCausalLM.from_pretrained(
-    #     model_path,
-    #     attn_implementation="eager",
-    #     torch_dtype=torch.bfloat16,
-    #     device_map="cpu",
-    # )
+    model_path = "d:\\models\\opt-125m"
+    model = CompressOPTForCausalLM.from_pretrained(
+        model_path,
+        attn_implementation="eager",
+        torch_dtype=torch.bfloat16,
+        device_map="cpu",
+    )
     # model_path = "d:\\models\\bloom-560m"
     # model = CompressLlamaForCausalLM.from_pretrained(
     #     model_path,
@@ -121,13 +146,13 @@ if __name__ == "__main__":
     #     torch_dtype=torch.bfloat16,
     #     device_map="cpu",
     # )
-    model_path = "d:\\models\\phi-1.5"
-    model = CompressPhiForCausalLM.from_pretrained(
-        model_path,
-        attn_implementation="eager",
-        torch_dtype=torch.bfloat16,
-        device_map="cpu",
-    )
+    # model_path = "d:\\models\\phi-1.5"
+    # model = CompressPhiForCausalLM.from_pretrained(
+    #     model_path,
+    #     attn_implementation="eager",
+    #     torch_dtype=torch.bfloat16,
+    #     device_map="cpu",
+    # )
     model._prepare_attention_module(quant_config)
     rtn(model, device)
     print(model)

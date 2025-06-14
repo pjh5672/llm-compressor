@@ -19,6 +19,7 @@ from modules.qmatmul import QMatmul  # noqa: E402
 from modules.qlinear import QLinear  # noqa: E402
 from prune.magnitude.core import magnitude  # noqa: E402
 from quantization.calibrations.rtn.core import rtn  # noqa: E402
+from quantization.calibrations.awq.core import awq  # noqa: E402
 
 
 def eager_attention_forward(
@@ -183,6 +184,9 @@ class CompressOPTForCausalLM(OPTForCausalLM, CompressForCausalLM):
             if quant_method == "rtn":
                 rtn(self, device)
                 return
+            elif quant_method == "awq":
+                seq_len = kwargs.get("seq_len", 2048)
+                awq(self, device, tokenizer, n_samples=128, seq_len=seq_len)
         else:
             return
 
@@ -262,7 +266,7 @@ if __name__ == "__main__":
     from easydict import EasyDict
     from evaluation.eval import LMEvaluator
 
-    group_size = -1
+    group_size = 128
     device = torch.device("cuda:0")
     quant_config = EasyDict({})
     quant_config.linear = EasyDict({})
@@ -336,18 +340,25 @@ if __name__ == "__main__":
     }
 
     model_path = "d:\\models\\opt-125m"
+    tokenizer = AutoTokenizer.from_pretrained(model_path, use_fast=False)
     model = CompressOPTForCausalLM.from_pretrained(
         model_path,
         attn_implementation="eager",
         torch_dtype=torch.bfloat16,
         device_map="cpu",
     )
+
+    quant_kwargs = {
+        "n_samples": 128,
+        "seq_len": 512,
+    }
     model.quantize(
-        None,
-        quant_method="rtn",
+        tokenizer=tokenizer,
+        quant_method="awq", # "rtn" / "awq"
         quant_config=quant_config,
         device=device,
         quantize=True,
+        **quant_kwargs,
     )
     print(model)
 
