@@ -19,6 +19,7 @@ class QLinear(nn.Linear):
         linear: nn.Linear,
         quant_config,
         dtype,
+        **kwargs,
     ):
         super().__init__(
             linear.in_features,
@@ -39,7 +40,7 @@ class QLinear(nn.Linear):
         self.weight_quantizer = FakeQuantizer.build(**self.quant_config.weight)
         self.output_quantizer = FakeQuantizer.build(**self.quant_config.act_out)
 
-    def forward(self, inputs: Tensor) -> Tensor:
+    def forward(self, inputs: Tensor, **kwargs) -> Tensor:
         """Forward with quantized weight if available."""
         return self.output_quantizer(
             F.linear(self.input_quantizer(inputs), self.weight, self.bias)

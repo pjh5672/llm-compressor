@@ -9,6 +9,7 @@ if str(PATH) not in sys.path:
     sys.path.append(str(PATH))
 
 from utils.general import LOGGER  # noqa: E402
+from utils.torch_utils import cleanup_memory  # noqa: E402
 from quantization.calibrations.utils import find_layers  # noqa: E402
 
 
@@ -44,7 +45,7 @@ def check_sparsity(model, device):
 
         layers[i] = layer.cpu()
         del layer
-        torch.cuda.empty_cache()
+        cleanup_memory(verbose=False)
 
     model.config.use_cache = use_cache
     print(f"Model sparsity : {float(count) / total_params:.4f}")
