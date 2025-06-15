@@ -140,7 +140,7 @@ results = evaluator.eval(model, tasks=args.tasks, **eval_kwargs)
 print_eval(results)
 ```
 
-#### 6. Save the model
+#### 6. Save the Model
 ```python
 model.save_compressed(args.model, args.save_path)
 ```
