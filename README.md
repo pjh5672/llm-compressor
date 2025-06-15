@@ -43,6 +43,31 @@ pip install -e .
 
 ## 🛠️ Quick Start
 
+As for the argument(args), you can following the information below.
+```
+options: 
+    -h, --help          show this help message and exit
+    --model             Path to HF model
+    --exp-name          Name to project
+    --quantize          Enable to quantize model
+    --quant-method      Quantization method
+    --weight            Quantization config for weight, following pattern of [type]-[group_size]-[zero_point]-[quant_wise]. (e.g. 'int4-g[-1]-zp-rw' means int4-asymetric-per_token quant)
+    --act-in            Quantization config for input activation, following pattern of [type]-[group_size]-[zero_point]-[quant_wise]. (e.g. 'int8-g[-1]-zp-rw' means int8-asymetric-per_token quant)
+    --act-out           Quantization config for output activation, following pattern of [type]-[group_size]-[zero_point]-[quant_wise]. (e.g. 'int8-g[-1]-zp-rw' means int8-asymetric-per_token quant)
+    --head              Quantization config for head weight, following pattern of [type]-[group_size]-[zero_point]-[quant_wise]. (e.g. 'int8-g[-1]-zp-rw' means int8-asymetric-per_token quant)
+    --prune             Enable to prune model
+    --prune-method      Prune method
+    --sparsity          Sparsity ratio
+    --calib-data        Calibration dataset
+    --calib-num         Number of calibration dataset
+    --save-path         Path to save compressed model
+    --tasks             Evaluation tasks
+    --seq-len           Sequence length for calibration and evaluation
+    --batch-size        Evaluation batch size
+    --device            cuda devices, i.e. 0 or 0,1,2,3 or cpu
+    --seed              Inference seed
+```
+
 #### 1. Get Your Argument
 
 ```python
@@ -76,7 +101,7 @@ model = CompressOPTForCausalLM.from_pretrained(
 
 ```python
 model.prune(
-    tokenizer=None,
+    tokenizer=tokenizer,
     prune_method=args.prune_method,
     prune_config=args.prune_config,
     device=device,
@@ -87,12 +112,17 @@ model.prune(
 #### 4. Quantize the Model
 
 ```python
+quant_kwargs = {
+    "n_samples": 128,
+    "seq_len": 512,
+}
 model.quantize(
-    tokenizer=None,
+    tokenizer=tokenizer,
     quant_method=args.quant_method,
     quant_config=args.quant_config,
     device=device,
     quantize=args.quantize,
+    **quant_kwargs
 )
 ```
 
@@ -102,8 +132,9 @@ model.quantize(
 evaluator = LMEvaluator(device=device, n_samples=128)
 eval_kwargs = {
     "tokenizer_path": args.model,
-    "seq_len": args.seq_len,
-    "batch_size": args.batch_size,
+    "seq_len": 512,
+    "batch_size": 1,
+    "check_sparsity": True,
 }
 results = evaluator.eval(model, tasks=args.tasks, **eval_kwargs)
 print_eval(results)
