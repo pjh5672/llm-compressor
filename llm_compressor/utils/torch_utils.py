@@ -78,6 +78,6 @@ def cleanup_memory(verbose=True) -> None:
         memory_after = total_reserved_mem()
         if verbose:
             LOGGER.debug(
-                f"GPU memory{caller_name}: {memory_before / (1024 ** 3):.2f} -> {memory_after / (1024 ** 3):.2f} GB"
-                f" ({(memory_after - memory_before) / (1024 ** 3):.2f} GB)"
+                f"GPU memory{caller_name}: {memory_before / (1024**3):.2f} -> {memory_after / (1024**3):.2f} GB"
+                f" ({(memory_after - memory_before) / (1024**3):.2f} GB)"
             )

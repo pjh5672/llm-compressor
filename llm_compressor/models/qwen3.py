@@ -1,3 +1,4 @@
+import os
 import sys
 from pathlib import Path
 from typing import Callable, Optional, Tuple
@@ -26,6 +27,7 @@ from modules.qmatmul import QMatmul  # noqa: E402
 from modules.qlinear import QLinear  # noqa: E402
 from prune.magnitude.core import magnitude  # noqa: E402
 from quantization.calibrations.rtn.core import rtn  # noqa: E402
+from quantization.calibrations.awq.core import awq  # noqa: E402
 
 
 def eager_attention_forward(
@@ -143,7 +145,6 @@ class CompressQwen3ForCausalLM(Qwen3ForCausalLM, CompressForCausalLM):
         config,
     ):
         super().__init__(config)
-        self._embed_tokens = self.model.embed_tokens
 
     def _prepare_attention_module(self, quant_config):
         for name, module in self.named_modules():
@@ -182,7 +183,18 @@ class CompressQwen3ForCausalLM(Qwen3ForCausalLM, CompressForCausalLM):
 
             if quant_method == "rtn":
                 rtn(self, device)
-                return
+
+            elif quant_method == "awq":
+                n_samples = kwargs.get("n_samples", 128)
+                seq_len = kwargs.get("seq_len", 2048)
+                awq(
+                    self,
+                    device,
+                    tokenizer,
+                    n_samples=n_samples,
+                    seq_len=seq_len,
+                    verbose=True,
+                )
         else:
             return
 
@@ -196,8 +208,9 @@ class CompressQwen3ForCausalLM(Qwen3ForCausalLM, CompressForCausalLM):
         else:
             return
 
-    def save_compressed(self, base_model_path, local_save_path):
+    def save_compressed(self, local_save_path):
         LOGGER.info("Saving compressed model...")
+        base_model_path = self.config._name_or_path.rstrip(os.sep)
 
         with init_empty_weights():
             tokenizer = AutoTokenizer.from_pretrained(base_model_path)
@@ -207,8 +220,7 @@ class CompressQwen3ForCausalLM(Qwen3ForCausalLM, CompressForCausalLM):
 
         compressed_sd = {}
         for k, v in self.state_dict().items():
-            if k not in ("_embed_tokens.weight"):
-                compressed_sd[k] = v
+            compressed_sd[k] = v
 
         Qwen3ForCausalLM.save_pretrained(
             base_model,
@@ -242,13 +254,9 @@ class CompressQwen3ForCausalLM(Qwen3ForCausalLM, CompressForCausalLM):
                 ]
             ]
 
-    @property
-    def embed_tokens(self):
-        return self._embed_tokens
-
-    @embed_tokens.setter
-    def embed_tokens(self, value):
-        self._embed_tokens = value
+    def move_embed(self, device):
+        self.model.embed_tokens = self.model.embed_tokens.to(device)
+        self.model.rotary_emb = self.model.rotary_emb.to(device)
 
 
 if __name__ == "__main__":
@@ -329,18 +337,24 @@ if __name__ == "__main__":
     }
 
     model_path = "d:\\models\\qwen3-1.7b"
+    tokenizer = AutoTokenizer.from_pretrained(model_path, use_fast=False)
     model = CompressQwen3ForCausalLM.from_pretrained(
         model_path,
         attn_implementation="eager",
         torch_dtype=torch.bfloat16,
         device_map="cpu",
     )
+    quant_kwargs = {
+        "n_samples": 128,
+        "seq_len": 512,
+    }
     model.quantize(
-        None,
-        quant_method="rtn",
+        tokenizer=tokenizer,
+        quant_method="awq",
         quant_config=quant_config,
         device=device,
         quantize=True,
+        **quant_kwargs,
     )
     print(model)
 
@@ -349,6 +363,7 @@ if __name__ == "__main__":
         "tokenizer_path": model_path,
         "seq_len": 512,
         "batch_size": 1,
+        "check_sparsity": False,
     }
     results = evaluator.eval(model, tasks="ppl", **eval_kwargs)
     print(results)

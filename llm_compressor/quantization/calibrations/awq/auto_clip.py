@@ -8,26 +8,22 @@ PATH = Path(__file__).resolve().parents[3]
 if str(PATH) not in sys.path:
     sys.path.append(str(PATH))
 
-from utils.general import LOGGER  # noqa: E402
 from utils.module import get_op_by_name  # noqa: E402
 from utils.torch_utils import cleanup_memory  # noqa: E402
 
 
 @torch.no_grad()
-def auto_clip_layer(
-    layer, input_feat, n_grid=20, max_shrink=0.5, n_sample_token=512
-):
+def auto_clip_layer(layer, input_feat, n_grid=20, max_shrink=0.5, n_sample_token=512):
     w = layer.weight
-
     assert w.dim() == 2
     # w           [co, ci]      -> [co, 1, n_group, group size]
     # input_feat  [n_token, ci] -> [1, n_token, n_group, group size]
     group_size = layer.weight_quantizer.group_size
-    if group_size == 0:
-        return 
+    if group_size in (0, -1, -2):
+        return
     if isinstance(group_size, (tuple, list)):
         group_size = group_size[-1]
-    
+
     input_feat = input_feat.view(-1, input_feat.shape[-1])
     input_feat = input_feat.reshape(1, input_feat.shape[0], -1, group_size)
     input_feat = input_feat[:, 0 :: input_feat.shape[1] // n_sample_token]
@@ -94,6 +90,7 @@ def apply_clip(module, clip_list, device):
     for name, max_val in clip_list:
         if max_val is None:
             continue
+
         layer = get_op_by_name(module, name)
         layer.to(device)
         max_val = max_val.to(device).to(layer.weight.dtype)

@@ -1,3 +1,4 @@
+import os
 import sys
 from pathlib import Path
 from typing import Optional
@@ -23,6 +24,7 @@ from modules.qmatmul import QMatmul  # noqa: E402
 from modules.qlinear import QLinear  # noqa: E402
 from prune.magnitude.core import magnitude  # noqa: E402
 from quantization.calibrations.rtn.core import rtn  # noqa: E402
+from quantization.calibrations.awq.core import awq  # noqa: E402
 
 
 class QuantBloomAttention(BloomAttention):
@@ -185,7 +187,18 @@ class CompressBloomForCausalLM(BloomForCausalLM, CompressForCausalLM):
 
             if quant_method == "rtn":
                 rtn(self, device)
-                return
+
+            elif quant_method == "awq":
+                n_samples = kwargs.get("n_samples", 128)
+                seq_len = kwargs.get("seq_len", 2048)
+                awq(
+                    self,
+                    device,
+                    tokenizer,
+                    n_samples=n_samples,
+                    seq_len=seq_len,
+                    verbose=True,
+                )
         else:
             return
 
@@ -199,8 +212,9 @@ class CompressBloomForCausalLM(BloomForCausalLM, CompressForCausalLM):
         else:
             return
 
-    def save_compressed(self, base_model_path, local_save_path):
+    def save_compressed(self, local_save_path):
         LOGGER.info("Saving compressed model...")
+        base_model_path = self.config._name_or_path.rstrip(os.sep)
 
         with init_empty_weights():
             tokenizer = AutoTokenizer.from_pretrained(base_model_path)
@@ -240,6 +254,12 @@ class CompressBloomForCausalLM(BloomForCausalLM, CompressForCausalLM):
                     "mlp.dense_4h_to_h",
                 ]
             ]
+
+    def move_embed(self, device):
+        self.transformer.word_embeddings = self.transformer.word_embeddings.to(device)
+        self.transformer.word_embeddings_layernorm = (
+            self.transformer.word_embeddings_layernorm.to(device)
+        )
 
 
 if __name__ == "__main__":
@@ -320,6 +340,7 @@ if __name__ == "__main__":
     }
 
     model_path = "d:\\models\\bloom-560m"
+    tokenizer = AutoTokenizer.from_pretrained(model_path, use_fast=False)
     model = CompressBloomForCausalLM.from_pretrained(
         model_path,
         attn_implementation="eager",
@@ -327,19 +348,26 @@ if __name__ == "__main__":
         device_map="cpu",
     )
 
+    quant_kwargs = {
+        "n_samples": 128,
+        "seq_len": 512,
+    }
     model.quantize(
-        None,
-        quant_method="rtn",
+        tokenizer=tokenizer,
+        quant_method="awq",  # "rtn" / "awq"
         quant_config=quant_config,
         device=device,
-        quantize=False,
+        quantize=True,
+        **quant_kwargs,
     )
-    print(model)
+    # print(model)
+
     evaluator = LMEvaluator(device=device, n_samples=128)
     eval_kwargs = {
         "tokenizer_path": model_path,
         "seq_len": 512,
         "batch_size": 1,
+        "check_sparsity": False,
     }
     results = evaluator.eval(model, tasks="ppl", **eval_kwargs)
     print(results)

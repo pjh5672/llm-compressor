@@ -140,11 +140,11 @@ class CustomJsonDataset(torch.utils.data.IterableDataset):
     def __init__(self, dataset, tokenizer_path, block_size: int = 1024) -> None:
         raw_data = dataset
         self.tokenizer = AutoTokenizer.from_pretrained(
-            tokenizer_path, 
-            use_fast=True, 
+            tokenizer_path,
+            use_fast=True,
             padding_side="right",
             add_eos_token=False,
-            add_bos_token=False
+            add_bos_token=False,
         )
         self.block_size = block_size
         tokenized_datasets = []
@@ -200,7 +200,7 @@ class CustomJsonDataset(torch.utils.data.IterableDataset):
         }
         result["labels"] = result["input_ids"].copy()
         return result
-    
+
 
 if __name__ == "__main__":
     tokenizer_path = r"d:\\models\\opt-125M"
@@ -208,9 +208,7 @@ if __name__ == "__main__":
     for dataset in ["wikitext2", "ptb", "c4"]:
         get_loaders(dataset, tokenizer_path=tokenizer_path)
 
-    calibration_datasets = load_dataset(
-        "wikitext", "wikitext-2-raw-v1", split="train"
-    )
+    calibration_datasets = load_dataset("wikitext", "wikitext-2-raw-v1", split="train")
     train_data = CustomJsonDataset(
         calibration_datasets,
         tokenizer_path=tokenizer_path,

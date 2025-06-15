@@ -24,7 +24,7 @@ model = CompressOPTForCausalLM.from_pretrained(
 
 ############### Model Pruning ###############
 model.prune(
-    None,
+    tokenizer=tokenizer,
     prune_method=args.prune_method,
     prune_config=args.prune_config,
     device=device,
@@ -32,24 +32,30 @@ model.prune(
 )
 
 ############### Model Quantization ###############
+quant_kwargs = {
+        "n_samples": 128,
+        "seq_len": 512,
+    }
 model.quantize(
-    None,
+    tokenizer=tokenizer,
     quant_method=args.quant_method,
     quant_config=args.quant_config,
     device=device,
     quantize=args.quantize,
+    **quant_kwargs
 )
 
 ############### Model Evaluation ###############
 evaluator = LMEvaluator(device=device, n_samples=128)
 eval_kwargs = {
     "tokenizer_path": args.model,
-    "seq_len": args.seq_len,
-    "batch_size": args.batch_size,
+    "seq_len": 512,
+    "batch_size": 1,
+    "check_sparsity": True,
 }
 results = evaluator.eval(model, tasks=args.tasks, **eval_kwargs)
 print_eval(results)
 
 ############### Model Saving ###############
 if args.save_path is not None:
-    model.save_compressed(args.model, args.save_path)
+    model.save_compressed(args.save_path)

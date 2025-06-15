@@ -25,3 +25,7 @@ class CompressForCausalLM(ABC):
     @abstractmethod
     def get_sequential(self):
         pass
+
+    @abstractmethod
+    def move_embed(self):
+        pass
