@@ -164,14 +164,6 @@ def auto_scale_block(module, module_kwargs, input_feat):
                 inp=input_feat["fc1"],
             )
         )
-        # fc2
-        scales_list.append(
-            _auto_get_scale(
-                prev_op=module.fc1,
-                layers=[module.fc2],
-                inp=input_feat["fc2"],
-            )
-        )
 
     else:
         raise NotImplementedError(f"{type(module)} not supported yet!")

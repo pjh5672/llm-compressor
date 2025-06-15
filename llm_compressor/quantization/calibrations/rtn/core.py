@@ -13,37 +13,44 @@ from utils.module import find_layers  # noqa: E402
 from utils.torch_utils import cleanup_memory  # noqa: E402
 
 
-def rtn(model, device):
-    LOGGER.info("Quantizing model... [Quant-method : RTN]")
+def rtn(model, device, verbose=True):
+    if verbose:
+        LOGGER.info("Quantizing model... [Quant-method : RTN]")
 
     use_cache = model.config.use_cache
     model.config.use_cache = False
     layers = model.get_layers()
-    sequential = model.get_sequential(mode="true")
 
-    pg_bar = tqdm(range(len(layers)))
+    pg_bar = tqdm(range(len(layers))) if verbose else range(len(layers))
     for i in pg_bar:
-        s = f"Quantizing layer.{i:02}..."
-        pg_bar.set_description(s)
-        LOGGER.debug(s)
+        if verbose:
+            s = f"Quantizing layer.{i:02}..."
+            pg_bar.set_description(s)
+            LOGGER.debug(s)
 
         layer = layers[i].to(device)
-        full = find_layers(layer)
+        subset = find_layers(layer)
 
-        for names in sequential:
-            subset = {n: full[n] for n in names}
-
-            for name in subset:
-                W = subset[name].weight.data
-                subset[name].weight.data = subset[name].weight_quantizer(W)
-                del subset[name].weight_quantizer
+        for name in subset:
+            W = subset[name].weight.data
+            subset[name].weight.data = subset[name].weight_quantizer(W)
+            del subset[name].weight_quantizer
 
         layers[i] = layer.cpu()
         del layer
         cleanup_memory(verbose=False)
 
+    model.lm_head.to(device)
+    model.lm_head.weight.data = model.lm_head.weight_quantizer(
+        model.lm_head.weight.data
+    )
+    model.lm_head.cpu()
+    del model.lm_head.weight_quantizer
+    cleanup_memory(verbose=False)
+
     model.config.use_cache = use_cache
-    LOGGER.info("Quantization complete !")
+    if verbose:
+        LOGGER.info("Quantization complete !")
     return
 
 

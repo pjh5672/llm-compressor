@@ -19,7 +19,7 @@ from modules.qmatmul import QMatmul  # noqa: E402
 from modules.qlinear import QLinear  # noqa: E402
 from prune.magnitude.core import magnitude  # noqa: E402
 from quantization.calibrations.rtn.core import rtn  # noqa: E402
-from quantization.calibrations.awq.core import awq  # noqa: E402
+from quantization.calibrations.awq.core import awq, apply_scale  # noqa: E402
 
 
 def eager_attention_forward(
@@ -182,11 +182,11 @@ class CompressOPTForCausalLM(OPTForCausalLM, CompressForCausalLM):
             self._prepare_attention_module(quant_config)
 
             if quant_method == "rtn":
-                rtn(self, device)
+                rtn(self, device, verbose=True)
                 return
             elif quant_method == "awq":
                 seq_len = kwargs.get("seq_len", 2048)
-                awq(self, device, tokenizer, n_samples=128, seq_len=seq_len)
+                awq(self, device, tokenizer, n_samples=128, seq_len=seq_len, verbose=True)
         else:
             return
 
@@ -266,7 +266,7 @@ if __name__ == "__main__":
     from easydict import EasyDict
     from evaluation.eval import LMEvaluator
 
-    group_size = 128
+    group_size = -1
     device = torch.device("cuda:0")
     quant_config = EasyDict({})
     quant_config.linear = EasyDict({})

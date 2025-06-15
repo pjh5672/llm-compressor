@@ -15,16 +15,21 @@ from utils.general import LOGGER  # noqa: E402
 from utils.dataset import get_calib_dataset  # noqa: E402
 from utils.torch_utils import cleanup_memory  # noqa: E402
 from utils.module import find_layers, get_op_name, append_str_prefix  # noqa: E402
+from quantization.calibrations.rtn.core import rtn  # noqa: E402
 from quantization.calibrations.awq.auto_scale import auto_scale_block, apply_scale  # noqa: E402
 from quantization.calibrations.awq.auto_clip import auto_clip_block, apply_clip  # noqa: E402
 
 
 @torch.no_grad()
-def awq(model, device, tokenizer, n_samples=512, seq_len=2048):
-    LOGGER.info("Quantizing model... [Quant-method : AWQ]")
+def awq(model, device, tokenizer, n_samples=512, seq_len=2048, verbose=True):
+    if verbose:
+        LOGGER.info("Quantizing model... [Quant-method : AWQ]")
+
     model.eval()
     use_cache = model.config.use_cache
     model.config.use_cache = False
+
+    orig_state_dict = model.state_dict()
     layers = model.get_layers()
 
     samples = get_calib_dataset(
@@ -76,11 +81,12 @@ def awq(model, device, tokenizer, n_samples=512, seq_len=2048):
     }
 
     # solve layer by layer
-    pg_bar = tqdm(range(len(layers)))
+    pg_bar = tqdm(range(len(layers))) if verbose else range(len(layers))
     for i in pg_bar:
-        s = f"Quantizing layer.{i:02}..."
-        pg_bar.set_description(s)
-        LOGGER.debug(s)
+        if verbose:
+            s = f"Quantizing layer.{i:02}..."
+            pg_bar.set_description(s)
+            LOGGER.debug(s)
 
         layer = layers[i].to(device)
         named_linears = find_layers(layer)
@@ -116,12 +122,12 @@ def awq(model, device, tokenizer, n_samples=512, seq_len=2048):
                 input_feat=input_feat,
             )
 
-        apply_scale(layers[i], scales_list, device, input_feat_dict=input_feat)
+        apply_scale(layer, scales_list, device, input_feat_dict=input_feat)
+
         # append prefix to make names global
         awq_results["scale"] += append_str_prefix(
             scales_list, get_op_name(model, layer) + "."
         )
-    
         cleanup_memory(verbose=False)
     
         clip_list = auto_clip_block(layer, input_feat=input_feat, device=device)
@@ -132,14 +138,18 @@ def awq(model, device, tokenizer, n_samples=512, seq_len=2048):
                 clip_list, get_op_name(model, layer) + "."
         )
 
-        layer = layer.cpu()
         del input_feat
         cleanup_memory(verbose=False)
-
-    model.config.use_cache = use_cache
+    
+    LOGGER.info("Applying AWQ results(scales, clip-range) into model...")
+    model.load_state_dict(orig_state_dict)
     apply_scale(model, awq_results["scale"], device)
     apply_clip(model, awq_results["clip"], device)
-    LOGGER.info("Quantization complete !")
+    rtn(model, device, verbose=False)
+
+    model.config.use_cache = use_cache
+    if verbose:
+        LOGGER.info("Quantization complete !")
     return 
 
 
