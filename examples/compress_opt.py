@@ -33,9 +33,9 @@ model.prune(
 
 ############### Model Quantization ###############
 quant_kwargs = {
-        "n_samples": 128,
-        "seq_len": 512,
-    }
+    "n_samples": 128,
+    "seq_len": 512,
+}
 model.quantize(
     tokenizer=tokenizer,
     quant_method=args.quant_method,

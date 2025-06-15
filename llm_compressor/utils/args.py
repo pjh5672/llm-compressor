@@ -170,7 +170,7 @@ def build_parser(root_dir):
         """,
     )
 
-    parser.add_argument("--prune", action="store_true", help="enable to prune model")
+    parser.add_argument("--prune", action="store_true", help="Enable to prune model")
 
     parser.add_argument("--prune-method", type=str, default=None, help="Prune method")
 
