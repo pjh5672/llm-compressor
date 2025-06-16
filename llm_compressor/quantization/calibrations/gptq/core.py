@@ -76,11 +76,11 @@ def gptq(model, device, n_samples=512, seq_len=2048, verbose=True):
     outs = torch.zeros_like(inps)
     cleanup_memory(verbose=False)
 
-    pg_bar = tqdm(range(len(layers))) if verbose else range(len(layers))
+    pg_bar = tqdm(range(len(layers)), leave=verbose)
     for i in pg_bar:
+        s = f"Quantizing layer.{i:02}..."
+        pg_bar.set_description(s)
         if verbose:
-            s = f"Quantizing layer.{i:02}..."
-            pg_bar.set_description(s)
             LOGGER.debug(s)
 
         layer = layers[i].to(device)

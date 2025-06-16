@@ -22,6 +22,7 @@ from pruning.magnitude.core import magnitude  # noqa: E402
 from quantization.calibrations.rtn.core import rtn  # noqa: E402
 from quantization.calibrations.awq.core import awq  # noqa: E402
 from quantization.calibrations.gptq.core import gptq  # noqa: E402
+from quantization.calibrations.awq_plus.core import awq_plus  # noqa: E402
 
 
 def eager_attention_forward(
@@ -205,6 +206,17 @@ class CompressOPTForCausalLM(OPTForCausalLM, CompressForCausalLM):
                     seq_len=seq_len,
                     verbose=True,
                 )
+            elif quant_method == "awq_plus":
+                n_samples = kwargs.get("n_samples", 128)
+                seq_len = kwargs.get("seq_len", 2048)
+                awq_plus(
+                    self,
+                    device,
+                    tokenizer,
+                    n_samples=n_samples,
+                    seq_len=seq_len,
+                    verbose=True,
+                )
         else:
             return
 
@@ -362,7 +374,7 @@ if __name__ == "__main__":
     }
     model.quantize(
         tokenizer=tokenizer,
-        quant_method="gptq",  # "rtn" / "awq" / "gptq"
+        quant_method="awq_plus",  # "rtn" / "awq" / "gptq" / "awq_plus"
         quant_config=quant_config,
         device=device,
         quantize=True,

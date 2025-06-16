@@ -21,11 +21,11 @@ def rtn(model, device, verbose=True):
     model.config.use_cache = False
     layers = model.get_layers()
 
-    pg_bar = tqdm(range(len(layers))) if verbose else range(len(layers))
+    pg_bar = tqdm(range(len(layers)), leave=verbose)
     for i in pg_bar:
+        s = f"Quantizing layer.{i:02}..."
+        pg_bar.set_description(s)
         if verbose:
-            s = f"Quantizing layer.{i:02}..."
-            pg_bar.set_description(s)
             LOGGER.debug(s)
 
         layer = layers[i].to(device)
