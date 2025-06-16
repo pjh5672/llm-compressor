@@ -5,8 +5,8 @@ from transformers import AutoTokenizer
 
 from llm_compressor.utils.args import build_parser
 from llm_compressor.utils.general import print_eval
-from llm_compressor.models.opt import CompressOPTForCausalLM
 from llm_compressor.evaluation.eval import LMEvaluator
+from llm_compressor.models.qwen3 import CompressQwen3ForCausalLM
 
 
 ############### Init Arguments ###############
@@ -15,7 +15,7 @@ args, device = build_parser(ROOT)
 
 ############### Model Definition ###############
 tokenizer = AutoTokenizer.from_pretrained(args.model)
-model = CompressOPTForCausalLM.from_pretrained(
+model = CompressQwen3ForCausalLM.from_pretrained(
     args.model,
     attn_implementation="eager",
     torch_dtype=torch.bfloat16,
@@ -33,8 +33,8 @@ model.prune(
 
 ############### Model Quantization ###############
 quant_kwargs = {
-    "n_samples": 128,
-    "seq_len": 512,
+    "n_samples": args.calib_num,
+    "seq_len": args.seq_len,
 }
 model.quantize(
     tokenizer=tokenizer,
@@ -42,16 +42,16 @@ model.quantize(
     quant_config=args.quant_config,
     device=device,
     quantize=args.quantize,
-    **quant_kwargs
+    **quant_kwargs,
 )
 
 ############### Model Evaluation ###############
-evaluator = LMEvaluator(device=device, n_samples=128)
+evaluator = LMEvaluator(device=device)
 eval_kwargs = {
     "tokenizer_path": args.model,
-    "seq_len": 512,
-    "batch_size": 1,
-    "check_sparsity": True,
+    "seq_len": args.seq_len,
+    "batch_size": args.batch_size,
+    "check_sparsity": args.prune,
 }
 results = evaluator.eval(model, tasks=args.tasks, **eval_kwargs)
 print_eval(results)

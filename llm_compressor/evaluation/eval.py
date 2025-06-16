@@ -51,16 +51,18 @@ class LMEvaluator:
         model.eval()
         ppl = {}
         for dataset in datasets:
-            # try:
-            _, testenc = get_loaders(name=dataset, tokenizer_path=tokenizer_path)
-            ppl[f"ppl.{dataset}"] = self.compute_ppl(
-                model=model, dataset=testenc, seq_len=seq_len
-            )
+            try:
+                _, testenc = get_loaders(name=dataset, tokenizer_path=tokenizer_path)
+                ppl[f"ppl.{dataset}"] = self.compute_ppl(
+                    model=model, dataset=testenc, seq_len=seq_len
+                )
 
-            LOGGER.info(f"PPL[{dataset.upper()}] : {ppl[f'ppl.{dataset}']:.4f}")
-            # except Exception as e:
-            #     ppl[f"ppl.{dataset}"] = sys.maxsize
-            #     LOGGER.error(e)
+                LOGGER.info(f"PPL[{dataset.upper()}] : {ppl[f'ppl.{dataset}']:.4f}")
+
+            except Exception as e:
+                ppl[f"ppl.{dataset}"] = sys.maxsize
+                LOGGER.error(e)
+
         return ppl
 
     @torch.no_grad()
@@ -153,6 +155,18 @@ class LMEvaluator:
 
 if __name__ == "__main__":
     from models.opt import CompressOPTForCausalLM
+
+    # qa_tasks = [
+    #     "lambada",
+    #     "hellaswag",
+    #     "winogrande",
+    #     "piqa",
+    #     "truthfulqa",
+    #     "openbookqa",
+    #     "boolq",
+    #     "arc_easy",
+    #     "arc_challenge",
+    # ]
 
     model_path = r"d:\\models\\opt-350M"
     model = CompressOPTForCausalLM.from_pretrained(

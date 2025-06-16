@@ -127,8 +127,8 @@ def gptq(model, device, n_samples=512, seq_len=2048, verbose=True):
                     layer=subset[name],
                     device=device,
                     block_size=128,
-                    percdamp=0.1,
-                    actorder=False,
+                    percdamp=0.01,
+                    actorder=True,
                 )
 
         for j in range(n_samples):
@@ -152,7 +152,6 @@ def update_weight(layer, device, block_size=128, percdamp=0.1, actorder=False):
     W = W.float()
 
     columns = W.shape[-1]
-    scales, zeros = layer.weight_quantizer.find_params(W)
     group_size = layer.weight_quantizer.group_size
 
     H = layer.weight_quantizer.H
@@ -161,19 +160,45 @@ def update_weight(layer, device, block_size=128, percdamp=0.1, actorder=False):
     H[dead, dead] = 1
     W[:, dead] = 0
 
+    scales, zeros = layer.weight_quantizer.find_params(W)
     if actorder:
-        perm = torch.argsort(torch.diag(H), descending=True)
-        W = W[:, perm]
-        H = H[perm][:, perm]
+        if group_size in (0, -1):
+            perm = torch.argsort(torch.diag(H), descending=True)
+            W = W[:, perm]
+            H = H[perm][:, perm]
+            invperm = torch.argsort(perm)
+        else:
+            N, K = W.shape
+            W = W.reshape(N, K // group_size, group_size)
+            perm = torch.argsort(
+                torch.diag(H).reshape(-1, group_size).sum(-1), descending=True
+            )
+            W = W[:, perm, :]
+            W = W.reshape(N, K)
+            # get scales, zeros for re-ordered W
+            scales, zeros = layer.weight_quantizer.find_params(W)
+            H = H.reshape(K // group_size, group_size, K // group_size, group_size)
+            H = H[perm][..., perm, :]
+            H = H.reshape(K, K)
         invperm = torch.argsort(perm)
 
-    Losses = torch.zeros_like(W)
     Q = torch.zeros_like(W)
 
-    damp = percdamp * torch.mean(torch.diag(H))
-    diag = torch.arange(columns, device=device)
-    H[diag, diag] += damp
-    H = torch.linalg.cholesky(H)
+    def _adjust_dump(percdamp, H, cols):
+        damp = percdamp * torch.mean(torch.diag(H))
+        diag = torch.arange(cols, device=device)
+        H[diag, diag] += damp
+        return H
+
+    try:
+        H = _adjust_dump(percdamp, H, columns)
+        H = torch.linalg.cholesky(H)
+    except Exception as e:
+        LOGGER.info(
+            f"{e}, Change damping ratio {percdamp} -> {percdamp * 10} for decomposition"
+        )
+        H = _adjust_dump(percdamp * 10, H, columns)
+        H = torch.linalg.cholesky(H)
     H = torch.cholesky_inverse(H)
     H = torch.linalg.cholesky(H, upper=True)
     Hinv = H
@@ -185,36 +210,49 @@ def update_weight(layer, device, block_size=128, percdamp=0.1, actorder=False):
         W1 = W[:, i1:i2].clone()
         Q1 = torch.zeros_like(W1)
         Err1 = torch.zeros_like(W1)
-        Losses1 = torch.zeros_like(W1)
         Hinv1 = Hinv[i1:i2, i1:i2]
 
-        for i in range(count):
-            w = W1[:, i]
-            d = Hinv1[i, i]
-            q = layer.weight_quantizer(
-                w.unsqueeze(1), scales=scales, zeros=zeros
-            ).flatten()
-            Q1[:, i] = q
-            Losses1[:, i] = (w - q) ** 2 / d**2
-
-            err1 = (w - q) / d
-            W1[:, i:] -= err1.unsqueeze(1).matmul(Hinv1[i, i:].unsqueeze(0))
-            Err1[:, i] = err1
+        if group_size in (0, -1):
+            for i in range(count):
+                w = W1[:, i]
+                d = Hinv1[i, i]
+                q = layer.weight_quantizer(
+                    w.unsqueeze(1), scales=scales, zeros=zeros
+                ).flatten()
+                Q1[:, i] = q
+                err1 = (w - q) / d
+                W1[:, i:] -= err1.unsqueeze(1).matmul(Hinv1[i, i:].unsqueeze(0))
+                Err1[:, i] = err1
+        else:
+            for i in range(0, count, group_size):
+                j = i1 + i
+                w = W1[:, i : i + group_size]
+                d = Hinv1[i : i + group_size, i : i + group_size]
+                s = scales[:, [j // group_size], :]
+                z = zeros if zeros == 0 else zeros[:, [j // group_size], :]
+                q = layer.weight_quantizer(w, scales=s, zeros=z)
+                Q1[:, i : i + group_size] = q
+                err1 = (w - q) / torch.diag(d)
+                W1[:, i:] -= err1.matmul(Hinv1[i : i + group_size, i:])
+                Err1[:, i : i + group_size] = err1
 
         Q[:, i1:i2] = Q1
-        Losses[:, i1:i2] = Losses1 / 2
-
         W[:, i2:] -= Err1.matmul(Hinv[i1:i2, i2:])
 
     if actorder:
-        Q = Q[:, invperm]
+        if group_size in (0, -1):
+            Q = Q[:, invperm]
+        else:
+            Q = Q.reshape(N, K // group_size, group_size)
+            Q = Q[:, invperm, :]
+            Q = Q.reshape(N, K)
 
     if isinstance(layer, transformers.Conv1D):
         Q = Q.t()
 
     layer.weight.data = Q.reshape(layer.weight.shape).to(layer.weight.data.dtype)
 
-    del Q, H, Hinv, Losses, W1, Q1, Err1, Losses1, Hinv1
+    del Q, H, Hinv, W1, Q1, Err1, Hinv1
     cleanup_memory(verbose=False)
 
 

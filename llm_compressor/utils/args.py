@@ -177,10 +177,6 @@ def build_parser(root_dir):
     parser.add_argument("--sparsity", type=float, default=0.0, help="Sparsity ratio")
 
     parser.add_argument(
-        "--calib-data", type=str, default="wiki2", help="Calibration dataset"
-    )
-
-    parser.add_argument(
         "--calib-num", type=int, default=128, help="Number of calibration dataset"
     )
 
@@ -209,11 +205,7 @@ def build_parser(root_dir):
 
     args = parser.parse_args()
     args.exp_dir = root_dir / "experiments" / args.exp_name
-    args.save_dir = args.exp_dir / "model"
-
     os.makedirs(args.exp_dir, exist_ok=True)
-    if args.save_dir:
-        os.makedirs(args.save_dir, exist_ok=True)
 
     LOGGER.info(f" 🐯 {colorstr('bright_blue', 'bold', PROJECT_NAME)} 🐯 ")
     LOGGER.info(
@@ -230,9 +222,7 @@ def build_parser(root_dir):
     args.quant_config = qparser.build_cfg(
         args.weight, args.act_in, args.act_out, args.head
     )
-    print_args(
-        args=args, exclude_keys=("exp_dir", "save_dir", "quant_config"), logger=LOGGER
-    )
+    print_args(args=args, exclude_keys=("exp_dir", "quant_config"), logger=LOGGER)
     return args, device
 
 

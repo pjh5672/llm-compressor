@@ -23,7 +23,7 @@ from utils.general import LOGGER  # noqa: E402
 from models.base import CompressForCausalLM  # noqa: E402
 from modules.qmatmul import QMatmul  # noqa: E402
 from modules.qlinear import QLinear  # noqa: E402
-from prune.magnitude.core import magnitude  # noqa: E402
+from pruning.magnitude.core import magnitude  # noqa: E402
 from quantization.calibrations.rtn.core import rtn  # noqa: E402
 from quantization.calibrations.awq.core import awq  # noqa: E402
 from quantization.calibrations.gptq.core import gptq  # noqa: E402
