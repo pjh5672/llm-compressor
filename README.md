@@ -15,11 +15,12 @@ A lightweight, modular toolkit for compressing Large Language Models (LLMs) usin
 ## 🚀 Features
 
 - ✅ Support **Unstructured pruning**
-    + Magnitude pruning
+    + Magnitude alogithm
 - ✅ Support **Post-training quantization(PTQ)**
     + INT / FP / MX format
     + 4-bit / 8-bit Fake quantizer support
     + Symmetric / Asymmetric quantization
+    + RTN / GPTQ / AWQ / SpinQuant algorithms
     + Per-tensor / Per-token / Per-channel / Per-block scaling options
 - ✅ **Plug-and-play integration** with Hugging Face Transformers
 
@@ -27,7 +28,17 @@ A lightweight, modular toolkit for compressing Large Language Models (LLMs) usin
 
 ## 🏗️ Supported Architectures
 
-- OPT / BLOOM / Llama(1, 2, 3) / Phi(1.5, 2) / Qwen(2.5, 3)
+| Model | Available Algorithms | Remark |
+| :---: | :---: | :---: |
+| OPT | RTN / GPTQ / AWQ | - |
+| BLOOM | RTN / GPTQ / AWQ | - |
+| Llama1 | RTN / GPTQ / AWQ / SpinQuant | - |
+| Llama2 | RTN / GPTQ / AWQ / SpinQuant | - |
+| Llama3.x | RTN / GPTQ / AWQ / SpinQuant | - |
+| Phi1.5 | RTN / GPTQ / AWQ | - |
+| Phi2 | RTN / GPTQ / AWQ | - |
+| Qwen2.x | RTN / GPTQ / AWQ | - |
+| Qwen3 | RTN / GPTQ / AWQ | - |
 
 ---
 

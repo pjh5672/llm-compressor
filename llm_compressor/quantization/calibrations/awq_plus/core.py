@@ -86,7 +86,7 @@ def awq_plus(model, device, tokenizer, n_samples=512, seq_len=2048, verbose=True
     # solve layer by layer
     pg_bar = tqdm(range(len(layers)), leave=verbose)
     for i in pg_bar:
-        s = f"Quantizing layer.{i:02}..."
+        s = f"Calibrating layer.{i:02}..."
         pg_bar.set_description(s)
         if verbose:
             LOGGER.debug(s)

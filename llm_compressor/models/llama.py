@@ -198,7 +198,7 @@ class CompressLlamaForCausalLM(LlamaForCausalLM, CompressForCausalLM):
                     device,
                     n_samples=n_samples,
                     seq_len=seq_len,
-                    mse=False,
+                    mse=True,
                     verbose=True,
                 )
             elif quant_method == "awq_plus":
@@ -221,6 +221,7 @@ class CompressLlamaForCausalLM(LlamaForCausalLM, CompressForCausalLM):
                     tokenizer,
                     n_samples=n_samples,
                     seq_len=seq_len,
+                    mse=True,
                     verbose=True,
                 )
         else:

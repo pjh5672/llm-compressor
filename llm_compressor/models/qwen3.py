@@ -185,7 +185,7 @@ class CompressQwen3ForCausalLM(Qwen3ForCausalLM, CompressForCausalLM):
             self._prepare_attention_module(quant_config)
 
             if quant_method == "rtn":
-                rtn(self, device)
+                rtn(self, device, mse=False, verbose=True)
 
             elif quant_method == "awq":
                 n_samples = kwargs.get("n_samples", 128)
@@ -228,6 +228,7 @@ class CompressQwen3ForCausalLM(Qwen3ForCausalLM, CompressForCausalLM):
                     tokenizer,
                     n_samples=n_samples,
                     seq_len=seq_len,
+                    mse=False,
                     verbose=True,
                 )
         else:
@@ -385,7 +386,7 @@ if __name__ == "__main__":
     }
     model.quantize(
         tokenizer=tokenizer,
-        quant_method="gptq",
+        quant_method="rtn",
         quant_config=quant_config,
         device=device,
         quantize=True,

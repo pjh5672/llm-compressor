@@ -228,6 +228,7 @@ class CompressOPTForCausalLM(OPTForCausalLM, CompressForCausalLM):
                     tokenizer,
                     n_samples=n_samples,
                     seq_len=seq_len,
+                    mse=False,
                     verbose=True,
                 )
         else:

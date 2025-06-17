@@ -27,7 +27,6 @@ def fuse_ln_linear(
 
 
 def fuse_layer_norms(model):
-    
     # Embedding fusion
     for W in [model.model.embed_tokens]:
         W_ = W.weight.data.double()

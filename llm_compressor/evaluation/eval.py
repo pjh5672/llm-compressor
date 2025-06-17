@@ -20,7 +20,9 @@ from utils.module import check_sparsity  # noqa: E402
 class LMEvaluator:
     def __init__(self, model, n_samples=None):
         # Move the model to GPUs (as much as possible) for LM evaluation
-        model.tie_weights()
+        if model.config.tie_word_embeddings:
+            model.tie_weights()
+
         mem_kwargs = {"max_memory": get_balanced_memory(model)}
         device_map = infer_auto_device_map(
             model=model, no_split_module_classes=model._no_split_modules, **mem_kwargs
