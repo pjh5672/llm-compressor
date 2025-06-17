@@ -5,6 +5,8 @@ import torch
 from tqdm import tqdm
 from lm_eval import models, evaluator
 from lm_eval.tasks import TaskManager, get_task_dict
+from accelerate import dispatch_model
+from accelerate.utils import infer_auto_device_map, get_balanced_memory
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -16,16 +18,23 @@ from utils.module import check_sparsity  # noqa: E402
 
 
 class LMEvaluator:
-    def __init__(self, device, n_samples=None):
-        self.device = device
+    def __init__(self, model, n_samples=None):
+        # Move the model to GPUs (as much as possible) for LM evaluation
+        if model.config.tie_word_embeddings:
+            model.tie_weights()
+
+        mem_kwargs = {"max_memory": get_balanced_memory(model)}
+        device_map = infer_auto_device_map(
+            model=model, no_split_module_classes=model._no_split_modules, **mem_kwargs
+        )
+        self.model = dispatch_model(model, device_map=device_map)
         self.n_samples = n_samples
 
-    def eval(self, model, tasks, **kwargs):
+    def eval(self, tasks, **kwargs):
         LOGGER.info("Evaluating compressed model...")
         if kwargs.get("check_sparsity", False):
-            check_sparsity(model, self.device)
+            check_sparsity(self.model, model.device)
 
-        model.to(self.device)
         results = {}
         tasks = tasks.split(",")
         if "ppl" in tasks:
@@ -33,7 +42,7 @@ class LMEvaluator:
             tokenizer_path = kwargs.get("tokenizer_path")
             seq_len = kwargs.get("seq_len", 2048)
             ppl = self.eval_ppl(
-                model=model,
+                model=self.model,
                 tokenizer_path=tokenizer_path,
                 datasets=datasets,
                 seq_len=seq_len,
@@ -42,7 +51,7 @@ class LMEvaluator:
             tasks.remove("ppl")
 
         batch_size = kwargs.get("batch_size", 1)
-        acc = self.eval_QA(model=model, tasks=tasks, batch_size=batch_size)
+        acc = self.eval_QA(model=self.model, tasks=tasks, batch_size=batch_size)
         results.update(acc)
         LOGGER.info("Evaluation complete !")
         return results
@@ -67,7 +76,7 @@ class LMEvaluator:
 
     @torch.no_grad()
     def compute_ppl(self, model, dataset, seq_len=2048):
-        input_ids = dataset.input_ids.to(self.device)
+        input_ids = dataset.input_ids.to(model.device)
         n_samples = input_ids.numel() // seq_len
         if self.n_samples is not None:
             n_samples = min(n_samples, self.n_samples)
@@ -168,13 +177,13 @@ if __name__ == "__main__":
     #     "arc_challenge",
     # ]
 
-    model_path = r"d:\\models\\opt-350M"
+    model_path = r"d:\\models\\opt-125m"
     model = CompressOPTForCausalLM.from_pretrained(
         model_path,
-        torch_dtype=torch.float16,
-        device_map="auto",
+        torch_dtype=torch.bfloat16,
+        device_map="cpu",
     )
-    lm_evaluator = LMEvaluator(device=model.device, n_samples=50)
+    lm_evaluator = LMEvaluator(model=model, n_samples=50)
     kwargs = {"tokenizer_path": model_path, "seq_len": 2048, "batch_size": 8}
-    results = lm_evaluator.eval(model, tasks="ppl,boolq,arc_easy", **kwargs)
+    results = lm_evaluator.eval(tasks="ppl,arc_easy", **kwargs)
     print(results)

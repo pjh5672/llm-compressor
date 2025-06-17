@@ -13,7 +13,7 @@ from utils.module import find_layers  # noqa: E402
 from utils.torch_utils import cleanup_memory  # noqa: E402
 
 
-def rtn(model, device, verbose=True):
+def rtn(model, device, mse=False, verbose=True):
     if verbose:
         LOGGER.info("Quantizing model... [Quant-method : RTN]")
 
@@ -21,11 +21,11 @@ def rtn(model, device, verbose=True):
     model.config.use_cache = False
     layers = model.get_layers()
 
-    pg_bar = tqdm(range(len(layers))) if verbose else range(len(layers))
+    pg_bar = tqdm(range(len(layers)), leave=verbose)
     for i in pg_bar:
+        s = f"Quantizing layer.{i:02}..."
+        pg_bar.set_description(s)
         if verbose:
-            s = f"Quantizing layer.{i:02}..."
-            pg_bar.set_description(s)
             LOGGER.debug(s)
 
         layer = layers[i].to(device)
@@ -33,6 +33,8 @@ def rtn(model, device, verbose=True):
 
         for name in subset:
             W = subset[name].weight.data
+            if mse:
+                subset[name].weight_quantizer.mse = True
             subset[name].weight.data = subset[name].weight_quantizer(W)
             del subset[name].weight_quantizer
 

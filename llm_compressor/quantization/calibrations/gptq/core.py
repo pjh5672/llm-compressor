@@ -20,9 +20,9 @@ from utils.module import find_layers  # noqa: E402
 
 
 @torch.no_grad()
-def gptq(model, device, n_samples=512, seq_len=2048, verbose=True):
+def gptq(model, device, n_samples=512, seq_len=2048, mse=False, verbose=True):
     if verbose:
-        LOGGER.info("Quantizing model... [Quant-method : GPTQ]")
+        LOGGER.info("Updating model... [Quant-method : GPTQ]")
 
     model.eval()
     use_cache = model.config.use_cache
@@ -76,11 +76,11 @@ def gptq(model, device, n_samples=512, seq_len=2048, verbose=True):
     outs = torch.zeros_like(inps)
     cleanup_memory(verbose=False)
 
-    pg_bar = tqdm(range(len(layers))) if verbose else range(len(layers))
+    pg_bar = tqdm(range(len(layers)), leave=verbose)
     for i in pg_bar:
+        s = f"Updating layer.{i:02}..."
+        pg_bar.set_description(s)
         if verbose:
-            s = f"Quantizing layer.{i:02}..."
-            pg_bar.set_description(s)
             LOGGER.debug(s)
 
         layer = layers[i].to(device)
@@ -126,6 +126,7 @@ def gptq(model, device, n_samples=512, seq_len=2048, verbose=True):
                 update_weight(
                     layer=subset[name],
                     device=device,
+                    mse=mse,
                     block_size=128,
                     percdamp=0.01,
                     actorder=True,
@@ -145,13 +146,18 @@ def gptq(model, device, n_samples=512, seq_len=2048, verbose=True):
     return
 
 
-def update_weight(layer, device, block_size=128, percdamp=0.1, actorder=False):
+def update_weight(
+    layer, device, mse=False, block_size=128, percdamp=0.1, actorder=False
+):
     W = layer.weight.data.clone()
     if isinstance(layer, transformers.Conv1D):
         W = W.t()
     W = W.float()
 
     columns = W.shape[-1]
+
+    if mse:
+        layer.weight_quantizer.mse = True
     group_size = layer.weight_quantizer.group_size
 
     H = layer.weight_quantizer.H

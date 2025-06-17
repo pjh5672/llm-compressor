@@ -26,6 +26,8 @@ from pruning.magnitude.core import magnitude  # noqa: E402
 from quantization.calibrations.rtn.core import rtn  # noqa: E402
 from quantization.calibrations.awq.core import awq  # noqa: E402
 from quantization.calibrations.gptq.core import gptq  # noqa: E402
+from quantization.calibrations.awq_plus.core import awq_plus  # noqa: E402
+from quantization.calibrations.spinquant.core import spinquant  # noqa: E402
 
 
 class QuantBloomAttention(BloomAttention):
@@ -187,7 +189,7 @@ class CompressBloomForCausalLM(BloomForCausalLM, CompressForCausalLM):
             self._prepare_attention_module(quant_config)
 
             if quant_method == "rtn":
-                rtn(self, device)
+                rtn(self, device, mse=False, verbose=True)
 
             elif quant_method == "awq":
                 n_samples = kwargs.get("n_samples", 128)
@@ -208,6 +210,29 @@ class CompressBloomForCausalLM(BloomForCausalLM, CompressForCausalLM):
                     device,
                     n_samples=n_samples,
                     seq_len=seq_len,
+                    verbose=True,
+                )
+            elif quant_method == "awq_plus":
+                n_samples = kwargs.get("n_samples", 128)
+                seq_len = kwargs.get("seq_len", 2048)
+                awq_plus(
+                    self,
+                    device,
+                    tokenizer,
+                    n_samples=n_samples,
+                    seq_len=seq_len,
+                    verbose=True,
+                )
+            elif quant_method == "spinquant":
+                n_samples = kwargs.get("n_samples", 128)
+                seq_len = kwargs.get("seq_len", 2048)
+                spinquant(
+                    self,
+                    device,
+                    tokenizer,
+                    n_samples=n_samples,
+                    seq_len=seq_len,
+                    mse=False,
                     verbose=True,
                 )
         else:
@@ -365,7 +390,7 @@ if __name__ == "__main__":
     }
     model.quantize(
         tokenizer=tokenizer,
-        quant_method="awq",  # "rtn" / "awq"
+        quant_method="gptq",  # "rtn" / "awq"
         quant_config=quant_config,
         device=device,
         quantize=True,
@@ -373,12 +398,12 @@ if __name__ == "__main__":
     )
     # print(model)
 
-    evaluator = LMEvaluator(device=device, n_samples=128)
+    evaluator = LMEvaluator(model=model, n_samples=128)
     eval_kwargs = {
         "tokenizer_path": model_path,
         "seq_len": 512,
         "batch_size": 1,
         "check_sparsity": False,
     }
-    results = evaluator.eval(model, tasks="ppl", **eval_kwargs)
+    results = evaluator.eval(tasks="ppl", **eval_kwargs)
     print(results)
