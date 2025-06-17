@@ -25,7 +25,7 @@ def spinquant(model, device, tokenizer, n_samples=512, seq_len=2048, verbose=Tru
     model.config.use_cache = False
 
     fuse_layer_norms(model)
-    rotate_model(model, "random", device, verbose=True)
+    rotate_model(model, "hadamard", device, verbose=True)
     rtn(model, device, mse=False, verbose=False)
     # gptq(model, device, n_samples, seq_len, verbose=False)
 

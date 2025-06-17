@@ -27,13 +27,13 @@ def fuse_ln_linear(
 
 
 def fuse_layer_norms(model):
+    
     # Embedding fusion
     for W in [model.model.embed_tokens]:
         W_ = W.weight.data.double()
         W.weight.data = (W_ - W_.mean(dim=-1, keepdim=True)).to(W.weight.data.dtype)
 
-    layers = [layer for layer in model.model.layers]
-
+    layers = model.get_layers()
     # Fuse the linear operations in Layernorm into the adjacent linear blocks.
     for layer in layers:
         # fuse the input layernorms into the linear layers

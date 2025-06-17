@@ -140,11 +140,10 @@ def rotate_model(model, rotate_mode, device, verbose=False):
 
         R2 = get_orthogonal_matrix(head_dim, rotate_mode, device)
 
-        layer = layers[i]
-        rotate_attention_inputs(layer, R1, device)
-        rotate_attention_output(layer, R1, device)
-        rotate_mlp_input(layer, R1, device)
-        rotate_mlp_output(layer, R1, device)
-        rotate_ov_proj(layer, head_dim, R2=R2)
+        rotate_attention_inputs(layers[i], R1, device)
+        rotate_attention_output(layers[i], R1, device)
+        rotate_mlp_input(layers[i], R1, device)
+        rotate_mlp_output(layers[i], R1, device)
+        rotate_ov_proj(layers[i], head_dim, R2=R2)
 
     cleanup_memory(verbose=False)
