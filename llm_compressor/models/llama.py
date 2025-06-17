@@ -30,6 +30,7 @@ from quantization.calibrations.rtn.core import rtn  # noqa: E402
 from quantization.calibrations.awq.core import awq  # noqa: E402
 from quantization.calibrations.gptq.core import gptq  # noqa: E402
 from quantization.calibrations.awq_plus.core import awq_plus  # noqa: E402
+from quantization.calibrations.spinquant.core import spinquant  # noqa: E402
 
 
 def eager_attention_forward(
@@ -210,6 +211,17 @@ class CompressLlamaForCausalLM(LlamaForCausalLM, CompressForCausalLM):
                     seq_len=seq_len,
                     verbose=True,
                 )
+            elif quant_method == "spinquant":
+                n_samples = kwargs.get("n_samples", 128)
+                seq_len = kwargs.get("seq_len", 2048)
+                spinquant(
+                    self,
+                    device,
+                    tokenizer,
+                    n_samples=n_samples,
+                    seq_len=seq_len,
+                    verbose=True,
+                )
         else:
             return
 
@@ -365,7 +377,7 @@ if __name__ == "__main__":
     }
     model.quantize(
         tokenizer=tokenizer,
-        quant_method="rtn",
+        quant_method="spinquant",
         quant_config=quant_config,
         device=device,
         quantize=True,
@@ -373,12 +385,12 @@ if __name__ == "__main__":
     )
     # print(model)
 
-    evaluator = LMEvaluator(device=device, n_samples=128)
+    evaluator = LMEvaluator(model=model, n_samples=128)
     eval_kwargs = {
         "tokenizer_path": model_path,
         "seq_len": 512,
         "batch_size": 1,
         "check_sparsity": False,
     }
-    results = evaluator.eval(model, tasks="ppl", **eval_kwargs)
+    results = evaluator.eval(tasks="ppl", **eval_kwargs)
     print(results)

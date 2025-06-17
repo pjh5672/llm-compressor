@@ -25,7 +25,7 @@ from quantization.calibrations.awq.auto_clip import auto_clip_block, apply_clip 
 @torch.no_grad()
 def awq_plus(model, device, tokenizer, n_samples=512, seq_len=2048, verbose=True):
     if verbose:
-        LOGGER.info("Quantizing model... [Quant-method : AWQ_PLUS]")
+        LOGGER.info("Calibrating model... [Quant-method : AWQ_PLUS]")
 
     model.eval()
     use_cache = model.config.use_cache

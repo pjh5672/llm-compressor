@@ -46,14 +46,14 @@ model.quantize(
 )
 
 ############### Model Evaluation ###############
-evaluator = LMEvaluator(device=device)
+evaluator = LMEvaluator(model=model, n_samples=128)
 eval_kwargs = {
     "tokenizer_path": args.model,
     "seq_len": args.seq_len,
     "batch_size": args.batch_size,
     "check_sparsity": args.prune,
 }
-results = evaluator.eval(model, tasks=args.tasks, **eval_kwargs)
+results = evaluator.eval(tasks="ppl", **eval_kwargs)
 print_eval(results)
 
 ############### Model Saving ###############

@@ -22,7 +22,7 @@ from utils.module import find_layers  # noqa: E402
 @torch.no_grad()
 def gptq(model, device, n_samples=512, seq_len=2048, verbose=True):
     if verbose:
-        LOGGER.info("Quantizing model... [Quant-method : GPTQ]")
+        LOGGER.info("Updating model... [Quant-method : GPTQ]")
 
     model.eval()
     use_cache = model.config.use_cache
