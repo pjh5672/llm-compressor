@@ -52,6 +52,7 @@ class FPQuantizer(nn.Module):
         self.max_norm = torch.tensor(max_norm).to(device)
         self.min_norm = torch.tensor(min_norm)
         self.str_format = str(format)
+        self.mse = False
         self.configure(zero_point=zero_point, group_size=group_size, axes=axes)
 
     def configure(self, zero_point, group_size, axes):
@@ -72,6 +73,7 @@ class FPQuantizer(nn.Module):
 
     def find_params(self, x, already_reshaped=False):
         dtype = x.dtype
+
         if (self.group_size != 0) & (not already_reshaped):
             if self.group_size == -1:  # per-token quant.
                 self.group_size = x.shape[-1]
@@ -91,8 +93,9 @@ class FPQuantizer(nn.Module):
                 zeros = (max_val + min_val) / 2
             else:
                 max_val = x.abs().amax(dim=self.axes, keepdim=True)
+                min_val = -max_val
                 scales = max_val / self.max_norm
-                zeros = torch.tensor(0)
+                zeros = torch.zeros_like(scales)
         else:
             if self.zero_point:
                 max_val = x.amax()
@@ -101,8 +104,57 @@ class FPQuantizer(nn.Module):
                 zeros = (max_val + min_val) / 2
             else:
                 max_val = x.abs().amax()
+                min_val = -max_val
                 scales = max_val / self.max_norm
-                zeros = torch.tensor(0)
+                zeros = torch.zeros_like(scales)
+
+        scales.clamp_(min=1e-5)
+
+        def _clip_range(x, norm=2.4, grid=100, maxshrink=0.8):
+            nonlocal scales, zeros
+
+            if self.group_size != 0:
+                best = torch.full(
+                    [x.shape[0], x.shape[1]], float("inf"), dtype=dtype, device=x.device
+                )
+            else:
+                best = torch.tensor([float("inf")], dtype=dtype, device=x.device)
+
+            for i in range(int(maxshrink * grid)):
+                p = 1 - i / grid
+                max_val1 = p * max_val
+                min_val1 = p * min_val
+
+                if self.zero_point:
+                    scales1 = (max_val1 - min_val1) / (2 * self.max_norm)
+                    zeros1 = (max_val1 + min_val1) / 2
+                else:
+                    scales1 = max_val1 / self.max_norm
+                    zeros1 = torch.zeros_like(scales1)
+
+                dq = self.fake_quantize(x, scales=scales1, zeros=zeros1)
+                dq -= x
+                dq.abs_()
+                dq.pow_(norm)
+                if self.group_size != 0:
+                    err = torch.sum(dq, dim=-1)
+                    tmp = err < best
+                    if torch.any(tmp):
+                        best[tmp] = err[tmp]
+                        tmp.unsqueeze_(-1)
+                        scales[tmp] = scales1[tmp]
+                        zeros[tmp] = zeros1[tmp]
+                else:
+                    err = torch.sum(dq)
+                    tmp = err < best
+                    if torch.any(tmp):
+                        tmp.squeeze_(0)
+                        best[tmp] = err[tmp]
+                        scales[tmp] = scales1[tmp]
+                        zeros[tmp] = zeros1[tmp]
+
+        if self.mse:
+            _clip_range(x)
 
         assert torch.isnan(scales).sum() == 0
         return scales.to(dtype), zeros.to(dtype)
@@ -171,9 +223,10 @@ if __name__ == "__main__":
         format=ElemFormat.fp4_e2m1,
         group_size=-1,
         axes=-1,
-        zero_point=False,
+        zero_point=True,
         device=device,
     )
+    quantizer.mse = False
     # print(quantizer)
     # x_dq = quantizer(x)
     # print(x_dq)

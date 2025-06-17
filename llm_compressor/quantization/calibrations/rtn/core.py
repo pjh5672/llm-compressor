@@ -13,7 +13,7 @@ from utils.module import find_layers  # noqa: E402
 from utils.torch_utils import cleanup_memory  # noqa: E402
 
 
-def rtn(model, device, verbose=True):
+def rtn(model, device, mse=False, verbose=True):
     if verbose:
         LOGGER.info("Quantizing model... [Quant-method : RTN]")
 
@@ -33,6 +33,8 @@ def rtn(model, device, verbose=True):
 
         for name in subset:
             W = subset[name].weight.data
+            if mse:
+                subset[name].weight_quantizer.mse = True
             subset[name].weight.data = subset[name].weight_quantizer(W)
             del subset[name].weight_quantizer
 

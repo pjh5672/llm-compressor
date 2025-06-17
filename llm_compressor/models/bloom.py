@@ -389,7 +389,7 @@ if __name__ == "__main__":
     }
     model.quantize(
         tokenizer=tokenizer,
-        quant_method="awq",  # "rtn" / "awq"
+        quant_method="gptq",  # "rtn" / "awq"
         quant_config=quant_config,
         device=device,
         quantize=True,

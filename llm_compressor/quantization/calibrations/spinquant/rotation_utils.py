@@ -1,12 +1,12 @@
 import sys
 from pathlib import Path
 
+import torch
+from tqdm import tqdm
+
 PATH = Path(__file__).resolve().parents[3]
 if str(PATH) not in sys.path:
     sys.path.append(str(PATH))
-
-import torch
-from tqdm import tqdm
 
 from utils.general import LOGGER  # noqa: E402
 from utils.torch_utils import cleanup_memory  # noqa: E402

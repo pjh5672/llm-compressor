@@ -2,9 +2,9 @@ import torch
 import torch.nn.functional as F
 
 if __package__:
-    from .formats import FP32_MIN_NORMAL, _get_min_norm
+    from .formats import _get_min_norm
 else:
-    from formats import FP32_MIN_NORMAL, _get_min_norm
+    from formats import _get_min_norm
 
 
 def tile_matrix(x, block_size):
@@ -151,55 +151,6 @@ def _undo_reshape_to_blocks(A, padded_shape, orig_shape, axes, **kwargs):
         # Remove extra dimension
         A = torch.squeeze(A, dim=axis + 1)
     return A
-
-
-def _shared_exponents(A, method="max", axes=None, mbits=0):
-    """
-    Get shared exponents for the passed matrix A.
-    Args:
-      A      {PyTorch tensor} -- Input tensor
-      method {str}            -- Exponent selection method.
-                                 "max" uses the max absolute value
-                                 "none" uses an exponent for each value (i.e., no sharing)
-      axes   {list(int)}      -- List of integers which specifies the axes across which
-                                 shared exponents are calculated.
-    Returns:
-      shared_exp {PyTorch tensor} -- Tensor of shared exponents
-    """
-
-    if method == "max":
-        if axes is None:
-            shared_exp = torch.max(torch.abs(A))
-        else:
-            shared_exp = A
-            for axis in axes:
-                shared_exp, _ = torch.max(torch.abs(shared_exp), dim=axis, keepdim=True)
-    elif method == "none":
-        shared_exp = torch.abs(A)
-    else:
-        raise Exception("Unrecognized shared exponent selection method %s" % (method))
-
-    shared_mts = torch.log2(
-        shared_exp + FP32_MIN_NORMAL * (shared_exp == 0).type(shared_exp.dtype)
-    )
-    # log2(shared_exp) and truncate to integer
-    shared_exp = torch.floor(
-        torch.log2(
-            shared_exp + FP32_MIN_NORMAL * (shared_exp == 0).type(shared_exp.dtype)
-        )
-    )
-
-    if mbits > 0:
-        shared_mts = 2 ** (shared_mts - shared_exp)
-        shared_mts = _safe_lshift(shared_mts, mbits, None)
-        shared_mts = _round_mantissa(shared_mts, mbits, "nearest", clamp=False)
-        shared_mts = _safe_rshift(shared_mts, mbits, None)
-        shared_mts = torch.clamp(
-            shared_mts, min=1.0, max=1 + ((2**mbits) - 1) / (2**mbits)
-        )
-    else:
-        shared_mts = torch.tensor(1.0)
-    return shared_exp, shared_mts
 
 
 def _safe_lshift(x, bits, exp):

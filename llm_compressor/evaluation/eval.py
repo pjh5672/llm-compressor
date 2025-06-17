@@ -20,6 +20,7 @@ from utils.module import check_sparsity  # noqa: E402
 class LMEvaluator:
     def __init__(self, model, n_samples=None):
         # Move the model to GPUs (as much as possible) for LM evaluation
+        model.tie_weights()
         mem_kwargs = {"max_memory": get_balanced_memory(model)}
         device_map = infer_auto_device_map(
             model=model, no_split_module_classes=model._no_split_modules, **mem_kwargs
@@ -39,7 +40,7 @@ class LMEvaluator:
             tokenizer_path = kwargs.get("tokenizer_path")
             seq_len = kwargs.get("seq_len", 2048)
             ppl = self.eval_ppl(
-                model=model,
+                model=self.model,
                 tokenizer_path=tokenizer_path,
                 datasets=datasets,
                 seq_len=seq_len,
@@ -48,7 +49,7 @@ class LMEvaluator:
             tasks.remove("ppl")
 
         batch_size = kwargs.get("batch_size", 1)
-        acc = self.eval_QA(model=model, tasks=tasks, batch_size=batch_size)
+        acc = self.eval_QA(model=self.model, tasks=tasks, batch_size=batch_size)
         results.update(acc)
         LOGGER.info("Evaluation complete !")
         return results

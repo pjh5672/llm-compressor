@@ -184,7 +184,7 @@ class CompressOPTForCausalLM(OPTForCausalLM, CompressForCausalLM):
             self._prepare_attention_module(quant_config)
 
             if quant_method == "rtn":
-                rtn(self, device, verbose=True)
+                rtn(self, device, mse=True, verbose=True)
 
             elif quant_method == "awq":
                 n_samples = kwargs.get("n_samples", 128)
@@ -205,6 +205,7 @@ class CompressOPTForCausalLM(OPTForCausalLM, CompressForCausalLM):
                     device,
                     n_samples=n_samples,
                     seq_len=seq_len,
+                    mse=False,
                     verbose=True,
                 )
             elif quant_method == "awq_plus":
@@ -386,13 +387,13 @@ if __name__ == "__main__":
     }
     model.quantize(
         tokenizer=tokenizer,
-        quant_method="awq_plus",  # "rtn" / "awq" / "gptq" / "awq_plus"
+        quant_method="rtn",  # "rtn" / "awq" / "gptq" / "awq_plus"
         quant_config=quant_config,
         device=device,
         quantize=True,
         **quant_kwargs,
     )
-    print(model)
+    # print(model)
 
     evaluator = LMEvaluator(model=model, n_samples=128)
     eval_kwargs = {
