@@ -177,7 +177,7 @@ class CompressLlamaForCausalLM(LlamaForCausalLM, CompressForCausalLM):
             self._prepare_attention_module(quant_config)
 
             if quant_method == "rtn":
-                rtn(self, device, mse=True, verbose=True)
+                rtn(self, device, mse=False, verbose=True)
 
             elif quant_method == "awq":
                 n_samples = kwargs.get("n_samples", 128)
@@ -365,7 +365,17 @@ if __name__ == "__main__":
         "device": None,
     }
 
-    model_path = "d:\\models\\llama-3.2-1b-it"
+    from utils.args import build_parser, QuantConfigParser
+
+    ROOT = Path(__file__).resolve().parents[1]
+    args, device = build_parser(ROOT)
+
+    qparser = QuantConfigParser()
+    quant_config = qparser.build_cfg(
+        args.weight, args.act_in, args.act_out, args.head
+    )
+    
+    model_path = "d:\\models\\llama-3.2-3b-it"
     tokenizer = AutoTokenizer.from_pretrained(model_path, use_fast=False)
     model = CompressLlamaForCausalLM.from_pretrained(
         model_path,
@@ -379,15 +389,15 @@ if __name__ == "__main__":
     }
     model.quantize(
         tokenizer=tokenizer,
-        quant_method="spinquant",
+        quant_method="rtn",
         quant_config=quant_config,
         device=device,
-        quantize=True,
+        quantize=args.quantize,
         **quant_kwargs,
     )
     # print(model)
 
-    evaluator = LMEvaluator(model=model, device=device, n_samples=128)
+    evaluator = LMEvaluator(model=model, n_samples=128)
     eval_kwargs = {
         "tokenizer_path": model_path,
         "seq_len": 512,

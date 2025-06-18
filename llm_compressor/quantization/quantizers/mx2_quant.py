@@ -7,6 +7,10 @@ if __package__:
         _reshape_to_blocks,
         _undo_reshape_to_blocks,
         _quantize_elemwise_core,
+        _safe_lshift,
+        _safe_rshift,
+        _round_mantissa,
+        _reshape,
     )
 else:
     from formats import ElemFormat, FP32_MIN_NORMAL, _get_format_params
@@ -14,14 +18,18 @@ else:
         _reshape_to_blocks,
         _undo_reshape_to_blocks,
         _quantize_elemwise_core,
+        _safe_lshift,
+        _safe_rshift,
+        _round_mantissa,
+        _reshape,
     )
 
 
-class MXQuantizer(nn.Module):
+class MX2Quantizer(nn.Module):
     def __init__(
         self,
         format: ElemFormat,
-        group_size=32,
+        group_size=[128, 32],
         axes=-1,
         zero_point=False,
         **kwargs,
@@ -49,8 +57,10 @@ class MXQuantizer(nn.Module):
         self.register_buffer("emax", torch.tensor(emax))
         self.register_buffer("max_norm", torch.tensor(max_norm))
         self.register_buffer("min_norm", torch.tensor(min_norm))
-        self.scale_ebits = kwargs.get("scale_ebits", 8)
-        self.scale_emax = 2 ** (self.scale_ebits - 1) - 1
+        self.sp_scale_ebits = kwargs.get("sp_scale_ebits", 4)
+        self.sb_scale_ebits = kwargs.get("sb_scale_ebits", 2)
+        self.sp_scale_emax = 2 ** (self.sp_scale_ebits - 1) - 1
+        self.sb_scale_emax = 2 ** (self.sb_scale_ebits - 1) - 1
         self.str_format = str(format)
         self.mse = False
         self.configure(zero_point=zero_point, group_size=group_size, axes=axes)
@@ -59,6 +69,13 @@ class MXQuantizer(nn.Module):
         self.zero_point = zero_point
         self.group_size = group_size
         self.axes = axes
+
+    def get_axes(self, x, axes):
+        if isinstance(axes, int):
+            axes = [axes]
+        axes = [(i + len(x.shape) - 1 if i < 0 else i) for i in axes]
+        assert all(x >= 0 for x in axes)
+        return sorted(axes)
 
     def find_params(self, x, already_reshaped=False):
 
@@ -69,13 +86,9 @@ class MXQuantizer(nn.Module):
                 axes=self.axes,
             )
         else:
-            if isinstance(self.axes, int):
-                axes = [self.axes]
-            axes = [(i + len(x.shape) - 1 if i < 0 else i) for i in axes]
-            assert all(x >= 0 for x in axes)
-            self.shared_axes = sorted(axes)
+            self.shared_axes = self.get_axes(x, self.axes)
 
-        def _get_scales(max_val):
+        def _get_scales(max_val, level: int):
             # Get shared exponents & shared mantissas
             shared_mts = torch.log2(
                 max_val + FP32_MIN_NORMAL * (max_val == 0).type(max_val.dtype)
@@ -83,23 +96,36 @@ class MXQuantizer(nn.Module):
             shared_exp = torch.floor(shared_mts)
             # Offset the max exponent by the largest representable exponent
             # in the element data format
-            shared_exp -= self.emax
-
+            if level == 1:
+                shared_exp -= (self.sb_scale_emax + self.emax)
+                scale_emax = self.sp_scale_emax
+            else: # 2
+                shared_exp -= self.emax
+                scale_emax = self.sb_scale_emax
             # Restrict to [-emax, emax] range
-            shared_exp[shared_exp > self.scale_emax] = self.scale_emax + 1
-            shared_exp[shared_exp < -self.scale_emax] = -self.scale_emax
+            shared_exp[shared_exp > scale_emax] = scale_emax + 1
+            shared_exp[shared_exp < -scale_emax] = -scale_emax
             return 2 ** shared_exp
 
         if self.zero_point:
             max_val = x.amax(dim=self.axes, keepdim=True)
             min_val = x.amin(dim=self.axes, keepdim=True)
             zeros = (max_val + min_val) / 2
-            scales = _get_scales(max_val - zeros)
+            scales = _get_scales(max_val - zeros, level=1)
         else:
             max_val = x.abs().amax(dim=self.axes, keepdim=True)
             min_val = -max_val
             zeros = torch.zeros_like(max_val)
-            scales = _get_scales(max_val)
+            sp_scales = _get_scales(max_val, level=1)
+            sb_x = x / sp_scales
+            sb_x.squeeze_(self.shared_axes)
+            A, *_ = _reshape_to_blocks(
+                sb_x, self.group_size[-1], self.shared_axes
+            )
+            sb_max_val = A.abs().amax(dim=self.axes, keepdim=True)
+            sb_scales = _get_scales(sb_max_val, level=2)
+            scales = (sp_scales * sb_scales)
+
 
         def _clip_range(x, norm=2.4, grid=100, maxshrink=0.8):
             nonlocal scales, zeros
@@ -149,7 +175,7 @@ class MXQuantizer(nn.Module):
 
         scales.clamp_(min=1e-5)
         assert torch.isnan(scales).sum() == 0
-        return scales, zeros
+        return A, scales, zeros
 
     def forward(self, x, **kwargs):
         scales = kwargs.pop("scales", None)
@@ -157,7 +183,7 @@ class MXQuantizer(nn.Module):
 
         x, *meta = _reshape_to_blocks(
             x,
-            block_size=self.group_size,
+            block_size=self.group_size[0],
             axes=self.axes,
         )
 
@@ -202,13 +228,11 @@ if __name__ == "__main__":
     x = torch.randn(4, 6).to(device=device)
     # print(x)
 
-    quantizer = MXQuantizer(
+    quantizer = MX2Quantizer(
         format=ElemFormat.int4,
-        group_size=32,
+        group_size=[128, 32],
         axes=-1,
         zero_point=False,
-        scale_ebits=8,
-        scale_mbits=0,
     )
     quantizer.to(device)
     # quantizer = MXQuantizer(

@@ -7,6 +7,20 @@ else:
     from formats import _get_min_norm
 
 
+def _reshape(shape, reshape_block_size, axes):
+    for axis in axes:
+        # Reshape to tiles if axis length > reshape_block_size
+        if shape[axis] >= reshape_block_size:
+            assert shape[axis] % reshape_block_size == 0
+            shape[axis + 1] = reshape_block_size
+            shape[axis] = shape[axis] // reshape_block_size
+        # Otherwise preserve length and insert a 1 into the shape
+        else:
+            shape[axis + 1] = shape[axis]
+            shape[axis] = 1
+    return shape
+
+
 def tile_matrix(x, block_size):
     orig_shape = x.shape
     *p, h, w = orig_shape
