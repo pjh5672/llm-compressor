@@ -110,7 +110,6 @@ class MXQuantizer(nn.Module):
                     min=1.0,
                     max=1 + ((2**self.scale_mbits) - 1) / (2**self.scale_mbits),
                 )
-                print(shared_mts)
                 return (2**shared_exp) * shared_mts
             else:
                 return 2**shared_exp

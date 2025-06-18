@@ -18,16 +18,10 @@ from utils.module import check_sparsity  # noqa: E402
 
 
 class LMEvaluator:
-    def __init__(self, model, n_samples=None):
-        # Move the model to GPUs (as much as possible) for LM evaluation
+    def __init__(self, model, device, n_samples=None):
         if model.config.tie_word_embeddings:
             model.tie_weights()
-
-        mem_kwargs = {"max_memory": get_balanced_memory(model)}
-        device_map = infer_auto_device_map(
-            model=model, no_split_module_classes=model._no_split_modules, **mem_kwargs
-        )
-        self.model = dispatch_model(model, device_map=device_map)
+        self.model = model.to(device)
         self.n_samples = n_samples
 
     def eval(self, tasks, **kwargs):
@@ -70,7 +64,7 @@ class LMEvaluator:
 
             except Exception as e:
                 ppl[f"ppl.{dataset}"] = sys.maxsize
-                LOGGER.error(e)
+                raise e
 
         return ppl
 
@@ -114,7 +108,7 @@ class LMEvaluator:
 
             except Exception as e:
                 results[task] = sys.maxsize
-                LOGGER.error(e)
+                raise e
 
         return results
 
@@ -176,14 +170,14 @@ if __name__ == "__main__":
     #     "arc_easy",
     #     "arc_challenge",
     # ]
-
+    device = torch.device("cuda")
     model_path = r"d:\\models\\opt-125m"
     model = CompressOPTForCausalLM.from_pretrained(
         model_path,
         torch_dtype=torch.bfloat16,
         device_map="cpu",
     )
-    lm_evaluator = LMEvaluator(model=model, n_samples=50)
-    kwargs = {"tokenizer_path": model_path, "seq_len": 2048, "batch_size": 8}
-    results = lm_evaluator.eval(tasks="ppl,arc_easy", **kwargs)
+    lm_evaluator = LMEvaluator(model=model, device=device, n_samples=50)
+    kwargs = {"tokenizer_path": model_path, "seq_len": 512, "batch_size": 1}
+    results = lm_evaluator.eval(tasks="ppl", **kwargs)
     print(results)
