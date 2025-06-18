@@ -24,6 +24,72 @@ else:
         _reshape,
     )
 
+from torch.nn.functional import pad
+
+def resolve_axis(axis, ndim):
+    """Convert negative axis to positive."""
+    return axis if axis >= 0 else axis + ndim
+
+def two_level_grouping(tensor, axis=-1, group_size=128, sub_group_size=32):
+    assert group_size % sub_group_size == 0, "group_size must be divisible by sub_group_size"
+
+    def _reshape_to_blocks(A, axes, block_size):
+        if axes is None:
+            raise Exception("axes required in order to determine which dimension to apply block size to")
+        if block_size == 0:
+            raise Exception("block_size == 0 in _reshape_to_blocks")
+
+        # Fix axes to be positive and sorted
+        axes = [(x + len(A.shape) if x < 0 else x) for x in axes]
+        axes = sorted(axes)
+
+        for i in range(len(axes)):
+            axes[i] += i
+            A = torch.unsqueeze(A, dim=axes[i] + 1)
+
+        orig_shape = A.size()
+        pad_config = [0, 0] * len(orig_shape)
+        do_padding = False
+        for axis in axes:
+            dim_len = orig_shape[axis]
+            if dim_len % block_size != 0:
+                pad_amount = block_size - (dim_len % block_size)
+                pad_config[2 * axis] = pad_amount
+                do_padding = True
+
+        if do_padding:
+            pad_config = list(reversed(pad_config))
+            A = pad(A, pad_config, mode='constant')
+
+        padded_shape = A.size()
+
+        def _reshape(shape, bsize):
+            for axis in axes:
+                if shape[axis] >= bsize:
+                    assert shape[axis] % bsize == 0
+                    shape[axis + 1] = bsize
+                    shape[axis] = shape[axis] // bsize
+                else:
+                    shape[axis + 1] = shape[axis]
+                    shape[axis] = 1
+            return shape
+
+        reshape = _reshape(list(padded_shape), block_size)
+        A = A.view(reshape)
+        return A, axes
+
+    # Step 1: group into [*, num_groups, 128]
+    grouped_128, _ = _reshape_to_blocks(tensor, axes=[axis], block_size=group_size)
+
+    # Step 2: further reshape each 128 group → [num_groups, 4, 32]
+    last_dim = grouped_128.shape[-1]
+    assert last_dim == group_size, f"Last dim must be {group_size}"
+    num_subgroups = group_size // sub_group_size
+
+    grouped_32 = grouped_128.view(*grouped_128.shape[:-1], num_subgroups, sub_group_size)
+
+    return grouped_32  # shape: [*, num_groups, 4, 32]
+
 
 class MX2Quantizer(nn.Module):
     def __init__(
@@ -70,139 +136,69 @@ class MX2Quantizer(nn.Module):
         self.group_size = group_size
         self.axes = axes
 
-    def get_axes(self, x, axes):
-        if isinstance(axes, int):
-            axes = [axes]
-        axes = [(i + len(x.shape) - 1 if i < 0 else i) for i in axes]
-        assert all(x >= 0 for x in axes)
-        return sorted(axes)
+    def find_params(self, tensor, axis=-1, group_size=128, sub_group_size=32, eps=1e-8):
+        assert group_size % sub_group_size == 0
 
-    def find_params(self, x, already_reshaped=False):
+        # Resolve axis to positive
+        axis = resolve_axis(axis, tensor.ndim)
 
-        if not already_reshaped:
-            x, self.shared_axes, *_ = _reshape_to_blocks(
-                x,
-                block_size=self.group_size,
-                axes=self.axes,
-            )
-        else:
-            self.shared_axes = self.get_axes(x, self.axes)
+        # Step 1: reshape to [*, num_blocks_128, 4, 32]
+        reshaped, axes, orig_shape, padded_shape, _ = _reshape_to_blocks(tensor, group_size, [axis])
+        reshaped = reshaped.view(*reshaped.shape[:-1], group_size//sub_group_size, sub_group_size)
+        # reshaped = two_level_grouping(tensor, axis=axis, group_size=group_size, sub_group_size=sub_group_size)
 
-        def _get_scales(max_val, level: int):
-            # Get shared exponents & shared mantissas
-            shared_mts = torch.log2(
-                max_val + FP32_MIN_NORMAL * (max_val == 0).type(max_val.dtype)
-            )
-            shared_exp = torch.floor(shared_mts)
-            # Offset the max exponent by the largest representable exponent
-            # in the element data format
-            if level == 1:
-                shared_exp -= (self.sb_scale_emax + self.emax)
-                scale_emax = self.sp_scale_emax
-            else: # 2
-                shared_exp -= self.emax
-                scale_emax = self.sb_scale_emax
-            # Restrict to [-emax, emax] range
-            shared_exp[shared_exp > scale_emax] = scale_emax + 1
-            shared_exp[shared_exp < -scale_emax] = -scale_emax
-            return 2 ** shared_exp
+        # Step 2: Compute scale per 128-block
+        scale_128 = reshaped.abs().amax(dim=(-2, -1), keepdim=True) + eps  # shape: [..., G128, 1, 1]
 
-        if self.zero_point:
-            max_val = x.amax(dim=self.axes, keepdim=True)
-            min_val = x.amin(dim=self.axes, keepdim=True)
-            zeros = (max_val + min_val) / 2
-            scales = _get_scales(max_val - zeros, level=1)
-        else:
-            max_val = x.abs().amax(dim=self.axes, keepdim=True)
-            min_val = -max_val
-            zeros = torch.zeros_like(max_val)
-            sp_scales = _get_scales(max_val, level=1)
-            sb_x = x / sp_scales
-            sb_x.squeeze_(self.shared_axes)
-            A, *_ = _reshape_to_blocks(
-                sb_x, self.group_size[-1], self.shared_axes
-            )
-            sb_max_val = A.abs().amax(dim=self.axes, keepdim=True)
-            sb_scales = _get_scales(sb_max_val, level=2)
-            scales = (sp_scales * sb_scales)
+        # Step 3: Compute scale per 32-block (subgroup)
+        scale_32 = reshaped.abs().amax(dim=-1, keepdim=True) + eps  # shape: [..., G128, 4, 1]
 
+        # Step 4: Normalize tensor (two-level scaling)
+        normalized = reshaped / scale_128  # global scale
+        normalized = normalized / scale_32  # local scale
 
-        def _clip_range(x, norm=2.4, grid=100, maxshrink=0.8):
-            nonlocal scales, zeros
+        meta = {
+            "axis": axis,
+            "orig_shape": orig_shape,
+            "padded_shape": padded_shape,
+            "scale_128": scale_128.squeeze(-1).squeeze(-1),
+            "scale_32": scale_32.squeeze(-1)
+        }
+        return normalized, meta
 
-            if self.group_size != 0:
-                best = torch.full(
-                    [x.shape[0], x.shape[1]], float("inf"), dtype=dtype, device=x.device
-                )
-            else:
-                best = torch.tensor([float("inf")], dtype=dtype, device=x.device)
+    def two_level_dequantize(self, normalized, meta):
+        scale_128 = meta["scale_128"]
+        scale_32 = meta["scale_32"]
+        axis = meta["axis"]
+        orig_shape = meta["orig_shape"]
+        padded_shape = meta["padded_shape"]
 
-            for i in range(int(maxshrink * grid)):
-                p = 1 - i / grid
-                max_val1 = p * max_val
-                min_val1 = p * min_val
+        while scale_128.ndim < normalized.ndim:
+            scale_128 = scale_128.unsqueeze(-1)
+        while scale_32.ndim < normalized.ndim:
+            scale_32 = scale_32.unsqueeze(-1)
 
-                if self.zero_point:
-                    zeros1 = (max_val1 + min_val1) / 2
-                    scales1 = _get_scales(max_val1 - zeros1)
-                else:
-                    zeros1 = zeros
-                    scales1 = _get_scales(max_val1)
+        recovered = normalized * scale_32 * scale_128
 
-                dq = self.fake_quantize(x, scales=scales1, zeros=zeros1)
-                dq -= x
-                dq.abs_()
-                dq.pow_(norm)
-                if self.group_size != 0:
-                    err = torch.sum(dq, dim=-1)
-                    tmp = err < best
-                    if torch.any(tmp):
-                        best[tmp] = err[tmp]
-                        tmp.unsqueeze_(-1)
-                        scales[tmp] = scales1[tmp]
-                        zeros[tmp] = zeros1[tmp]
-                else:
-                    err = torch.sum(dq)
-                    tmp = err < best
-                    if torch.any(tmp):
-                        tmp.squeeze_(0)
-                        best[tmp] = err[tmp]
-                        scales[tmp] = scales1[tmp]
-                        zeros[tmp] = zeros1[tmp]
+        group_size = scale_32.shape[-1] * scale_128.shape[-2]
+        reshape_back = recovered.view(*padded_shape)
 
-        if self.mse:
-            _clip_range(x)
-
-        scales.clamp_(min=1e-5)
-        assert torch.isnan(scales).sum() == 0
-        return A, scales, zeros
+        slices = []
+        for i in range(len(orig_shape)):
+            dim_len = orig_shape[i]
+            slices.append(slice(0, dim_len))
+        trimmed = reshape_back[tuple(slices)]
+        return trimmed.view(orig_shape)
 
     def forward(self, x, **kwargs):
         scales = kwargs.pop("scales", None)
         zeros = kwargs.pop("zeros", None)
 
-        x, *meta = _reshape_to_blocks(
-            x,
-            block_size=self.group_size[0],
-            axes=self.axes,
-        )
+        qW, meta = self.find_params(x)
+        x_dq = self.fake_quantize(qW,  meta)
+        return x_dq.squeeze_()
 
-        if (scales is not None) & (zeros is not None):
-            x_dq = self.fake_quantize(x, scales=scales, zeros=zeros)
-        else:
-            scales, zeros = self.find_params(x, already_reshaped=True)
-            x_dq = self.fake_quantize(x, scales=scales, zeros=zeros)
-
-        return _undo_reshape_to_blocks(
-            x_dq,
-            padded_shape=meta[-2],
-            orig_shape=meta[1],
-            axes=meta[0],
-            block_size=meta[-1],
-        )
-
-    def fake_quantize(self, x, scales, zeros):
-        x = (x - zeros) / scales
+    def fake_quantize(self, x, meta):
         q = _quantize_elemwise_core(
             x,
             self.mbits,
@@ -213,7 +209,8 @@ class MX2Quantizer(nn.Module):
             saturate_normals=True,
             custom_cuda=False,
         )
-        return q * scales + zeros
+        dqW = self.two_level_dequantize(q, meta)
+        return dqW
 
     def extra_repr(self):
         s = f"Format: MX{self.str_format.split('.')[-1].upper()}, "

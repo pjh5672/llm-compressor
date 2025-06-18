@@ -83,12 +83,12 @@ def untile_matrix(x, block_size, padded_shape, orig_shape):
 
 
 def _reshape_to_blocks(A, block_size, axes=None):
-    if isinstance(block_size, list) or isinstance(block_size, tuple):
-        if len(block_size) == 2:
-            A, orig_shape, padded_shape = tile_matrix(A, block_size=block_size)
-            return A, None, orig_shape, padded_shape, block_size
-        else:
-            raise Exception("block_size must be 2d-list or 2d-tuple")
+    # if isinstance(block_size, list) or isinstance(block_size, tuple):
+    #     if len(block_size) == 2:
+    #         A, orig_shape, padded_shape = tile_matrix(A, block_size=block_size)
+    #         return A, None, orig_shape, padded_shape, block_size
+    #     else:
+    #         raise Exception("block_size must be 2d-list or 2d-tuple")
 
     if axes is None:
         raise Exception(
