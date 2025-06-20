@@ -24,9 +24,9 @@ def gptq(model, device, n_samples=512, seq_len=2048, mse=False, verbose=True):
     if verbose:
         LOGGER.info("Updating model... [Quant-method : GPTQ]")
 
-    model.eval()
     use_cache = model.config.use_cache
     model.config.use_cache = False
+    model.eval()
 
     model_name = model.config._name_or_path.rstrip(os.sep).split(os.sep)[-1]
     layers = model.get_layers()

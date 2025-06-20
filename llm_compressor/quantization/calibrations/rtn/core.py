@@ -13,12 +13,15 @@ from utils.module import find_layers  # noqa: E402
 from utils.torch_utils import cleanup_memory  # noqa: E402
 
 
+@torch.no_grad()
 def rtn(model, device, mse=False, verbose=True):
     if verbose:
         LOGGER.info("Quantizing model... [Quant-method : RTN]")
 
     use_cache = model.config.use_cache
     model.config.use_cache = False
+    model.eval()
+
     layers = model.get_layers()
 
     pg_bar = tqdm(range(len(layers)), leave=verbose)
@@ -142,7 +145,7 @@ if __name__ == "__main__":
         device_map="cpu",
     )
     # model_path = "d:\\models\\bloom-560m"
-    # model = CompressLlamaForCausalLM.from_pretrained(
+    # model = CompressBloomForCausalLM.from_pretrained(
     #     model_path,
     #     attn_implementation="eager",
     #     torch_dtype=torch.bfloat16,

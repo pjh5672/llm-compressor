@@ -118,27 +118,31 @@ def rotate_ov_proj(layer, head_dim, R2=None):
 
 
 @torch.inference_mode()
-def rotate_model(model, rotate_mode, device, verbose=False):
+def rotate_model(model, rotate_mode, device, **kwargs):
     config = model.config
     num_heads = config.num_attention_heads
     model_dim = config.hidden_size
     head_dim = model_dim // num_heads
 
     R1 = get_orthogonal_matrix(model_dim, rotate_mode, device)
-
+    if rotation_path := kwargs.get("rotation_path"):
+        R1 = torch.load(rotation_path / "R.bin")["R1"].to(device).to(torch.float64)
     rotate_embeddings(model, R1, device)
     rotate_head(model, R1, device)
     cleanup_memory(verbose=False)
 
-    layers = model.get_layers()
-    pg_bar = tqdm(range(len(layers)), leave=verbose)
+    layers = model.model.layers
+    pg_bar = tqdm(range(len(layers)))
     for i in pg_bar:
         s = f"Rotating layer.{i:02}..."
         pg_bar.set_description(s)
-        if verbose:
-            LOGGER.debug(s)
+        LOGGER.debug(s)
 
-        R2 = get_orthogonal_matrix(head_dim, rotate_mode, device)
+        if rotation_path := kwargs.get("rotation_path"):
+            key = f"model.layers.{i}.self_attn.R2"
+            R2 = torch.load(rotation_path / "R.bin")[key ].to(device).to(torch.float64)
+        else:
+            R2 = get_orthogonal_matrix(head_dim, rotate_mode, device)
 
         rotate_attention_inputs(layers[i], R1, device)
         rotate_attention_output(layers[i], R1, device)

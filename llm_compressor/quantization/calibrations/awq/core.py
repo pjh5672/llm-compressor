@@ -27,9 +27,9 @@ def awq(model, device, tokenizer, n_samples=512, seq_len=2048, verbose=True):
     if verbose:
         LOGGER.info("Calibrating model... [Quant-method : AWQ]")
 
-    model.eval()
     use_cache = model.config.use_cache
     model.config.use_cache = False
+    model.eval()
 
     orig_state_dict = model.state_dict()
     model_name = model.config._name_or_path.rstrip(os.sep).split(os.sep)[-1]
