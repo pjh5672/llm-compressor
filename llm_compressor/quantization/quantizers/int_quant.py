@@ -69,7 +69,6 @@ class INTQuantizer(nn.Module, BaseQuantizer):
             self.axes = axes
 
     def find_params(self, x, already_reshaped=False):
-
         if (self.group_size != 0) & (not already_reshaped):
             if self.group_size == -1:  # per-token quant.
                 self.group_size = x.shape[-1]
@@ -109,7 +108,10 @@ class INTQuantizer(nn.Module, BaseQuantizer):
 
             if self.group_size != 0:
                 best = torch.full(
-                    [x.shape[0], x.shape[1]], float("inf"), dtype=x.dtype, device=x.device
+                    [x.shape[0], x.shape[1]],
+                    float("inf"),
+                    dtype=x.dtype,
+                    device=x.device,
                 )
             else:
                 best = torch.tensor([float("inf")], dtype=x.dtype, device=x.device)
@@ -208,10 +210,10 @@ if __name__ == "__main__":
     print(x)
 
     quantizer = INTQuantizer(
-        format=ElemFormat.int4, 
-        group_size=-1, 
-        axes=-1, 
-        zero_point=True, 
+        format=ElemFormat.int4,
+        group_size=-1,
+        axes=-1,
+        zero_point=True,
     )
     quantizer.to(device)
     quantizer.mse = False

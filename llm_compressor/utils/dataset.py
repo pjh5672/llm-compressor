@@ -137,15 +137,9 @@ def get_calib_dataset(data="pileval", tokenizer=None, n_samples=512, block_size=
 
 
 class CustomJsonDataset(torch.utils.data.IterableDataset):
-    def __init__(self, dataset, tokenizer_path, block_size: int = 1024) -> None:
-        raw_data = dataset
-        self.tokenizer = AutoTokenizer.from_pretrained(
-            tokenizer_path,
-            use_fast=True,
-            padding_side="right",
-            add_eos_token=False,
-            add_bos_token=False,
-        )
+    def __init__(self, tokenizer, block_size: int = 1024) -> None:
+        raw_data = load_dataset("wikitext", "wikitext-2-raw-v1", split="train")
+        self.tokenizer = tokenizer
         self.block_size = block_size
         tokenized_datasets = []
         for d in raw_data:
@@ -208,9 +202,7 @@ if __name__ == "__main__":
     for dataset in ["wikitext2", "ptb", "c4"]:
         get_loaders(dataset, tokenizer_path=tokenizer_path)
 
-    calibration_datasets = load_dataset("wikitext", "wikitext-2-raw-v1", split="train")
     train_data = CustomJsonDataset(
-        calibration_datasets,
         tokenizer_path=tokenizer_path,
         block_size=2048,
     )

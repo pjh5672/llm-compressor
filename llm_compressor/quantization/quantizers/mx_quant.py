@@ -61,7 +61,6 @@ class MXQuantizer(nn.Module):
         self.axes = axes
 
     def find_params(self, x, already_reshaped=False):
-
         if not already_reshaped:
             x, self.shared_axes, *_ = _reshape_to_blocks(
                 x,
@@ -88,7 +87,7 @@ class MXQuantizer(nn.Module):
             # Restrict to [-emax, emax] range
             shared_exp[shared_exp > self.scale_emax] = self.scale_emax + 1
             shared_exp[shared_exp < -self.scale_emax] = -self.scale_emax
-            return 2 ** shared_exp
+            return 2**shared_exp
 
         if self.zero_point:
             max_val = x.amax(dim=self.axes, keepdim=True)
@@ -106,7 +105,10 @@ class MXQuantizer(nn.Module):
 
             if self.group_size != 0:
                 best = torch.full(
-                    [x.shape[0], x.shape[1]], float("inf"), dtype=x.dtype, device=x.device
+                    [x.shape[0], x.shape[1]],
+                    float("inf"),
+                    dtype=x.dtype,
+                    device=x.device,
                 )
             else:
                 best = torch.tensor([float("inf")], dtype=x.dtype, device=x.device)

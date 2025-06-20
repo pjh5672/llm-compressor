@@ -307,10 +307,8 @@ if __name__ == "__main__":
     args, device = build_parser(ROOT)
 
     qparser = QuantConfigParser()
-    quant_config = qparser.build_cfg(
-        args.weight, args.act_in, args.act_out, args.head
-    )
-    
+    quant_config = qparser.build_cfg(args.weight, args.act_in, args.act_out, args.head)
+
     model_path = "d:\\models\\bloom-560m"
     tokenizer = AutoTokenizer.from_pretrained(model_path, use_fast=False)
     model = CompressBloomForCausalLM.from_pretrained(
@@ -334,7 +332,7 @@ if __name__ == "__main__":
     )
     # print(model)
 
-    evaluator = LMEvaluator(model=model, device=device, n_samples=128)
+    evaluator = LMEvaluator(model=model, n_samples=128)
     eval_kwargs = {
         "tokenizer_path": model_path,
         "seq_len": 512,

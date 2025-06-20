@@ -42,6 +42,32 @@ class QLinear(nn.Linear):
 
     def forward(self, inputs: Tensor, **kwargs) -> Tensor:
         """Forward with quantized weight if available."""
+        R1 = kwargs.get("R1", None)
+        if R1 is not None:
+            dtype = self.weight.dtype
+            transpose = kwargs.get("transpose", False)
+            if not transpose:
+                weight = self.weight.to(torch.float64) @ R1.to(torch.float64)
+            else:
+                weight = R1.T.to(torch.float64) @ self.weight.to(torch.float64)
+
+            R2 = kwargs.get("R2", None)
+            if R2 is not None:
+                had_dim = R2.shape[0]
+                if transpose:
+                    W_ = weight
+                    init_shape = W_.shape
+                    temp = W_.reshape(-1, init_shape[-1] // had_dim, had_dim)
+                    temp = temp.to(torch.float64) @ R2.to(torch.float64)
+                    weight = temp.reshape(init_shape)
+                else:
+                    W_ = weight.t()
+                    transposed_shape = W_.shape
+                    temp = W_.reshape(-1, transposed_shape[-1] // had_dim, had_dim)
+                    temp = temp.to(torch.float64) @ R2.to(torch.float64)
+                    weight = temp.reshape(transposed_shape).t()
+                self.weight.data = weight.data.to(dtype)
+
         return self.output_quantizer(
             F.linear(self.input_quantizer(inputs), self.weight, self.bias)
         )

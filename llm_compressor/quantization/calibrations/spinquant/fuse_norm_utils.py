@@ -32,7 +32,7 @@ def fuse_layer_norms(model):
         W_ = W.weight.data.double()
         W.weight.data = (W_ - W_.mean(dim=-1, keepdim=True)).to(W.weight.data.dtype)
 
-    layers = model.get_layers()
+    layers = model.model.layers
     # Fuse the linear operations in Layernorm into the adjacent linear blocks.
     for layer in layers:
         # fuse the input layernorms into the linear layers

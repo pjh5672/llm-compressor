@@ -1,30 +1,131 @@
+import os
 import sys
 from pathlib import Path
 
 import torch
+from torch import nn
+from transformers import (
+    AutoTokenizer,
+    TrainingArguments,
+    Trainer,
+    default_data_collator,
+)
 
 PATH = Path(__file__).resolve().parents[3]
 if str(PATH) not in sys.path:
     sys.path.append(str(PATH))
 
 from utils.general import LOGGER  # noqa: E402
+from quantization.calibrations.rtn.core import rtn  # noqa: E402, F401
 from quantization.calibrations.gptq.core import gptq  # noqa: E402
-from quantization.calibrations.spinquant.rotation_utils import rotate_model  # noqa: E402
-from llm_compressor.quantization.calibrations.spinquant.fuse_norm_utils import (
-    fuse_layer_norms,
+from quantization.calibrations.spinquant.modeling.llama import SpinLlamaForCausalLM  # noqa: E402
+from quantization.calibrations.spinquant.rotation_utils import (
+    rotate_model,
+    random_hadamard_matrix,
 )  # noqa: E402
+from quantization.calibrations.spinquant.fuse_norm_utils import fuse_layer_norms  # noqa: E402
+from quantization.calibrations.spinquant.optimizer import SGDG  # noqa: E402
+from utils.dataset import CustomJsonDataset  # noqa: E402
 
 
-@torch.no_grad()
+class RotateModule(nn.Module):
+    def __init__(self, R_init, device):
+        super(RotateModule, self).__init__()
+        self.weight = nn.Parameter(R_init.to(torch.float32).to(device))
+
+    def forward(self, x, transpose=False):
+        if transpose:
+            return x @ self.weight
+        else:
+            return self.weight @ x
+
+
 def spinquant(
-    model, device, tokenizer, n_samples=512, seq_len=2048, mse=False, verbose=True
+    model,
+    device,
+    mode="random",
+    n_samples=128,
+    seq_len=2048,
+    mse=False,
+    verbose=True,
+    **kwargs,
 ):
     if verbose:
         LOGGER.info("Rotating model... [Quant-method : SpinQuant]")
 
-    model.eval()
+    if mode == "optim":
+        LOGGER.info("Optimizing rotation matrix...")
+        model_path = model.config._name_or_path
+        quant_config = kwargs.get("quant_config")
+
+        model = SpinLlamaForCausalLM.from_pretrained(
+            model_path,
+            attn_implementation="eager",
+            torch_dtype=torch.float32,
+            device_map="cpu",
+        )
+        model._prepare_model(quant_config=quant_config)
+
+        process_word_embeddings = model.config.tie_word_embeddings
+        if process_word_embeddings:
+            model.config.tie_word_embeddings = False
+            model.lm_head.weight.data = model.model.embed_tokens.weight.data.clone()
+
+        for param in model.parameters():
+            param.requires_grad = False
+
+        R1 = random_hadamard_matrix(model.config.hidden_size, device)
+        model.R1 = RotateModule(R1, device)
+        for i in range(model.config.num_hidden_layers):
+            head_dim = model.config.hidden_size // model.config.num_attention_heads
+            R2 = random_hadamard_matrix(head_dim, device)
+            model.model.layers[i].self_attn.R2 = RotateModule(R2, device)
+
+        model.seqlen = seq_len
+        trainable_parameters = [model.R1.weight] + [
+            model.model.layers[i].self_attn.R2.weight
+            for i in range(model.config.num_hidden_layers)
+        ]
+        tokenizer = AutoTokenizer.from_pretrained(
+            pretrained_model_name_or_path=model_path,
+            model_max_length=seq_len,
+            padding_side="right",
+            use_fast=True,
+            add_eos_token=False,
+            add_bos_token=False,
+        )
+        train_data = CustomJsonDataset(tokenizer=tokenizer, block_size=seq_len)
+        training_args = TrainingArguments(
+            per_device_train_batch_size=4,
+            per_device_eval_batch_size=2,
+        )
+        optimizer = SGDG(
+            trainable_parameters, lr=training_args.learning_rate, stiefel=True
+        )
+        trainer = Trainer(
+            model=model,
+            tokenizer=tokenizer,
+            args=training_args,
+            train_dataset=train_data,
+            eval_dataset=None,
+            data_collator=default_data_collator,
+            optimizers=(optimizer, None),
+        )
+        trainer.train()
+        cpu_state = trainer.model.state_dict()
+        R_dict = {
+            key.replace(".weight", ""): value
+            for key, value in cpu_state.items()
+            if "R1.weight" in key or "self_attn.R2" in key
+        }
+
+        path = os.path.join(str(kwargs.get("save_path")), "R.bin")
+        torch.save(R_dict, path)
+        raise
+
     use_cache = model.config.use_cache
     model.config.use_cache = False
+    model.eval()
 
     process_word_embeddings = model.config.tie_word_embeddings
     if process_word_embeddings:
@@ -32,10 +133,125 @@ def spinquant(
         model.lm_head.weight.data = model.model.embed_tokens.weight.data.clone()
 
     fuse_layer_norms(model)
-    rotate_model(model, "hadamard", device, verbose=True)
+    if mode == "optim":
+        rotate_model(model, "hadamard", device, rotation_path=kwargs.get("save_path"))
+    else:
+        rotate_model(model, "hadamard", device)
+
+    # rtn(model, device, mse=mse, verbose=False)
     gptq(model, device, n_samples, seq_len, mse=mse, verbose=False)
 
     model.config.use_cache = use_cache
     if verbose:
         LOGGER.info("Quantization complete !")
     return
+
+
+if __name__ == "__main__":
+    from easydict import EasyDict
+    from models.opt import CompressOPTForCausalLM  # noqa: F401
+    from models.bloom import CompressBloomForCausalLM  # noqa: F401
+    from models.llama import CompressLlamaForCausalLM  # noqa: F401
+    from models.phi import CompressPhiForCausalLM  # noqa: F401
+
+    device = torch.device("cuda:0")
+    quant_config = EasyDict({})
+    quant_config.linear = EasyDict({})
+    quant_config.linear.weight = {
+        "type": "int",
+        "format": "int4",
+        "group_size": -1,
+        "axes": -1,
+        "zero_point": False,
+        "device": device,
+    }
+    quant_config.linear.act_in = {
+        "type": None,
+        "format": "int8",
+        "group_size": -1,
+        "axes": -1,
+        "zero_point": False,
+        "device": device,
+    }
+    quant_config.linear.act_out = {
+        "type": None,
+        "format": "int8",
+        "group_size": -1,
+        "axes": -1,
+        "zero_point": False,
+        "device": device,
+    }
+    quant_config.matmul = EasyDict({})
+    quant_config.matmul.act_in = {
+        "type": None,
+        "format": "int8",
+        "group_size": -1,
+        "axes": -1,
+        "zero_point": False,
+        "device": device,
+    }
+    quant_config.matmul.act_out = {
+        "type": None,
+        "format": "int8",
+        "group_size": -1,
+        "axes": -1,
+        "zero_point": False,
+        "device": device,
+    }
+    quant_config.head = EasyDict({})
+    quant_config.head.weight = {
+        "type": None,
+        "format": "int8",
+        "group_size": -1,
+        "axes": -1,
+        "zero_point": False,
+        "device": device,
+    }
+    quant_config.head.act_in = {
+        "type": None,
+        "format": None,
+        "group_size": None,
+        "axes": None,
+        "zero_point": None,
+        "device": None,
+    }
+    quant_config.head.act_out = {
+        "type": None,
+        "format": None,
+        "group_size": None,
+        "axes": None,
+        "zero_point": None,
+        "device": None,
+    }
+
+    # model_path = "d:\\models\\opt-125m"
+    # model = CompressOPTForCausalLM.from_pretrained(
+    #     model_path,
+    #     attn_implementation="eager",
+    #     torch_dtype=torch.bfloat16,
+    #     device_map="cpu",
+    # )
+    # model_path = "d:\\models\\bloom-560m"
+    # model = CompressBloomForCausalLM.from_pretrained(
+    #     model_path,
+    #     attn_implementation="eager",
+    #     torch_dtype=torch.bfloat16,
+    #     device_map="cpu",
+    # )
+    model_path = "d:\\models\\llama-3.2-1b-it"
+    model = CompressLlamaForCausalLM.from_pretrained(
+        model_path,
+        attn_implementation="eager",
+        torch_dtype=torch.bfloat16,
+        device_map="cpu",
+    )
+    # model_path = "d:\\models\\phi-1.5"
+    # model = CompressPhiForCausalLM.from_pretrained(
+    #     model_path,
+    #     attn_implementation="eager",
+    #     torch_dtype=torch.bfloat16,
+    #     device_map="cpu",
+    # )
+    model._prepare_attention_module(quant_config)
+    spinquant(model, device)
+    print(model)
