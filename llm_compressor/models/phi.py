@@ -76,9 +76,8 @@ class QuantPhiAttention(PhiAttention):
             attention.config,
             attention.layer_idx,
         )
-        self.quant_config = quant_config
-        self.qk_matmul = QMatmul(self.quant_config, axes=-1)
-        self.sv_matmul = QMatmul(self.quant_config, axes=-2)
+        self.qk_matmul = QMatmul(quant_config, axes=-1)
+        self.sv_matmul = QMatmul(quant_config, axes=-2)
         self.q_proj = attention.q_proj
         self.k_proj = attention.k_proj
         self.v_proj = attention.v_proj
@@ -224,18 +223,6 @@ class CompressPhiForCausalLM(PhiForCausalLM, CompressForCausalLM):
                     tokenizer,
                     n_samples=n_samples,
                     seq_len=seq_len,
-                    verbose=True,
-                )
-            elif quant_method == "spinquant":
-                n_samples = kwargs.get("n_samples", 128)
-                seq_len = kwargs.get("seq_len", 2048)
-                spinquant(
-                    self,
-                    device,
-                    tokenizer,
-                    n_samples=n_samples,
-                    seq_len=seq_len,
-                    mse=True,
                     verbose=True,
                 )
         else:

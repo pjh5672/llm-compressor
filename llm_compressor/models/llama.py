@@ -78,9 +78,8 @@ class QuantLlamaAttention(LlamaAttention):
             attention.config,
             attention.layer_idx,
         )
-        self.quant_config = quant_config
-        self.qk_matmul = QMatmul(self.quant_config, axes=-1)
-        self.sv_matmul = QMatmul(self.quant_config, axes=-2)
+        self.qk_matmul = QMatmul(quant_config, axes=-1)
+        self.sv_matmul = QMatmul(quant_config, axes=-2)
         self.q_proj = attention.q_proj
         self.k_proj = attention.k_proj
         self.v_proj = attention.v_proj

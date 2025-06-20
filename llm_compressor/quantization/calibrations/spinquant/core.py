@@ -10,6 +10,9 @@ from transformers import (
     Trainer,
     default_data_collator,
 )
+from transformers.models.llama.modeling_llama import LlamaForCausalLM
+from transformers.models.qwen2.modeling_qwen2 import Qwen2ForCausalLM
+from transformers.models.qwen3.modeling_qwen3 import Qwen3ForCausalLM
 
 PATH = Path(__file__).resolve().parents[3]
 if str(PATH) not in sys.path:
@@ -19,6 +22,8 @@ from utils.general import LOGGER  # noqa: E402
 from quantization.calibrations.rtn.core import rtn  # noqa: E402, F401
 from quantization.calibrations.gptq.core import gptq  # noqa: E402
 from quantization.calibrations.spinquant.modeling.llama import SpinLlamaForCausalLM  # noqa: E402
+from quantization.calibrations.spinquant.modeling.qwen2 import SpinQwen2ForCausalLM  # noqa: E402
+from quantization.calibrations.spinquant.modeling.qwen3 import SpinQwen3ForCausalLM  # noqa: E402
 from quantization.calibrations.spinquant.rotation_utils import (
     rotate_model,
     random_hadamard_matrix,
@@ -43,7 +48,7 @@ class RotateModule(nn.Module):
 def spinquant(
     model,
     device,
-    mode="random",
+    mode="hadamard",
     n_samples=128,
     seq_len=2048,
     mse=False,
@@ -53,17 +58,35 @@ def spinquant(
     if verbose:
         LOGGER.info("Rotating model... [Quant-method : SpinQuant]")
 
-    if mode == "optim":
+    if mode == "optimize":
         LOGGER.info("Optimizing rotation matrix...")
         model_path = model.config._name_or_path
         quant_config = kwargs.get("quant_config")
-
-        model = SpinLlamaForCausalLM.from_pretrained(
-            model_path,
-            attn_implementation="eager",
-            torch_dtype=torch.float32,
-            device_map="cpu",
-        )
+        
+        if isinstance(model, LlamaForCausalLM):
+            model = SpinLlamaForCausalLM.from_pretrained(
+                model_path,
+                attn_implementation="eager",
+                torch_dtype=torch.float32,
+                device_map="auto",
+            )
+        elif isinstance(model, Qwen2ForCausalLM):
+            model = SpinQwen2ForCausalLM.from_pretrained(
+                model_path,
+                attn_implementation="eager",
+                torch_dtype=torch.float32,
+                device_map="auto",
+            )
+        elif isinstance(model, Qwen3ForCausalLM):
+            model = SpinQwen3ForCausalLM.from_pretrained(
+                model_path,
+                attn_implementation="eager",
+                torch_dtype=torch.float32,
+                device_map="auto",
+            )
+        else:
+            raise RuntimeError(f"Not support model yet, got {model_path}")
+        
         model._prepare_model(quant_config=quant_config)
 
         process_word_embeddings = model.config.tie_word_embeddings
@@ -74,12 +97,12 @@ def spinquant(
         for param in model.parameters():
             param.requires_grad = False
 
-        R1 = random_hadamard_matrix(model.config.hidden_size, device)
-        model.R1 = RotateModule(R1, device)
+        R1 = random_hadamard_matrix(model.config.hidden_size, model.device)
+        model.R1 = RotateModule(R1, model.device)
         for i in range(model.config.num_hidden_layers):
             head_dim = model.config.hidden_size // model.config.num_attention_heads
-            R2 = random_hadamard_matrix(head_dim, device)
-            model.model.layers[i].self_attn.R2 = RotateModule(R2, device)
+            R2 = random_hadamard_matrix(head_dim, model.device)
+            model.model.layers[i].self_attn.R2 = RotateModule(R2, model.device)
 
         model.seqlen = seq_len
         trainable_parameters = [model.R1.weight] + [
@@ -96,7 +119,7 @@ def spinquant(
         )
         train_data = CustomJsonDataset(tokenizer=tokenizer, block_size=seq_len)
         training_args = TrainingArguments(
-            num_train_epochs=3,
+            num_train_epochs=1,
             per_device_train_batch_size=4,
             per_device_eval_batch_size=4,
         )
@@ -131,13 +154,13 @@ def spinquant(
         model.lm_head.weight.data = model.model.embed_tokens.weight.data.clone()
 
     fuse_layer_norms(model)
-    if mode == "optim":
-        rotate_model(model, "hadamard", device, rotation_path=kwargs.get("save_path"))
+    if mode == "optimize":
+        rotate_model(model, mode, device, rotation_path=kwargs.get("save_path"))
     else:
-        rotate_model(model, "hadamard", device)
+        rotate_model(model, mode, device)
 
-    # rtn(model, device, mse=mse, verbose=False)
-    gptq(model, device, n_samples, seq_len, mse=mse, verbose=False)
+    rtn(model, device, mse=mse, verbose=False)
+    # gptq(model, device, n_samples, seq_len, mse=mse, verbose=False)
 
     model.config.use_cache = use_cache
     if verbose:

@@ -10,12 +10,12 @@ from transformers.cache_utils import Cache
 from transformers.processing_utils import Unpack
 from transformers.modeling_flash_attention_utils import FlashAttentionKwargs
 from transformers.modeling_outputs import CausalLMOutputWithPast
-from transformers.models.llama.modeling_llama import (
-    LlamaMLP,
-    LlamaAttention,
-    LlamaDecoderLayer,
-    LlamaModel,
-    LlamaForCausalLM,
+from transformers.models.qwen2.modeling_qwen2 import (
+    Qwen2MLP,
+    Qwen2Attention,
+    Qwen2DecoderLayer,
+    Qwen2Model,
+    Qwen2ForCausalLM,
     BaseModelOutputWithPast,
     logger,
     DynamicCache,
@@ -65,10 +65,10 @@ def eager_attention_forward(
     return attn_output, attn_weights
 
 
-class SpinLlamaMLP(LlamaMLP):
+class SpinQwen2MLP(Qwen2MLP):
     def __init__(
         self,
-        mlp: LlamaMLP,
+        mlp: Qwen2MLP,
         quant_config,
         dtype,
     ):
@@ -92,14 +92,14 @@ class SpinLlamaMLP(LlamaMLP):
             transpose=True,
         )
         return down_proj
+    
 
-
-class SpinLlamaAttention(LlamaAttention):
+class SpinQwen2Attention(Qwen2Attention):
     """Multi-headed attention from 'Attention Is All You Need' paper"""
 
     def __init__(
         self,
-        attention: LlamaAttention,
+        attention: Qwen2Attention,
         quant_config,
         dtype,
     ):
@@ -120,6 +120,18 @@ class SpinLlamaAttention(LlamaAttention):
         )
         self.o_proj = QLinear(
             linear=attention.o_proj, quant_config=quant_config.linear, dtype=dtype
+        )
+        self.layer_types = [
+            "sliding_attention"
+            if attention.config.sliding_window is not None
+            and i >= attention.config.max_window_layers
+            else "full_attention"
+            for i in range(attention.config.num_hidden_layers)
+        ]
+        self.sliding_window = (
+            attention.config.sliding_window
+            if self.layer_types[attention.layer_idx] == "sliding_attention"
+            else None
         )
         self.R2 = None
 
@@ -170,6 +182,7 @@ class SpinLlamaAttention(LlamaAttention):
             attention_mask,
             dropout=0.0 if not self.training else self.attention_dropout,
             scaling=self.scaling,
+            sliding_window=self.sliding_window,  # main diff with Llama
             qk_matmul=self.qk_matmul,
             sv_matmul=self.sv_matmul,
             **kwargs,
@@ -180,12 +193,12 @@ class SpinLlamaAttention(LlamaAttention):
         return attn_output, attn_weights
 
 
-class SpinLlamaDecoderLayer(LlamaDecoderLayer):
+class SpinQwen2DecoderLayer(Qwen2DecoderLayer):
     def __init__(
         self,
         config,
         layer_idx,
-        decoder: LlamaDecoderLayer,
+        decoder: Qwen2DecoderLayer,
         quant_config,
         dtype,
     ):
@@ -193,8 +206,8 @@ class SpinLlamaDecoderLayer(LlamaDecoderLayer):
             config,
             layer_idx,
         )
-        self.self_attn = SpinLlamaAttention(decoder.self_attn, quant_config, dtype)
-        self.mlp = SpinLlamaMLP(decoder.mlp, quant_config, dtype)
+        self.self_attn = SpinQwen2Attention(decoder.self_attn, quant_config, dtype)
+        self.mlp = SpinQwen2MLP(decoder.mlp, quant_config, dtype)
         self.input_layernorm = decoder.input_layernorm
         self.post_attention_layernorm = decoder.post_attention_layernorm
 
@@ -244,12 +257,12 @@ class SpinLlamaDecoderLayer(LlamaDecoderLayer):
             outputs += (self_attn_weights,)
 
         return outputs
+    
 
-
-class SpinLlamaModel(LlamaModel):
+class SpinQwen2Model(Qwen2Model):
     def __init__(
         self,
-        model: LlamaModel,
+        model: Qwen2Model,
         quant_config,
         dtype,
     ):
@@ -258,14 +271,14 @@ class SpinLlamaModel(LlamaModel):
         self.embed_tokens = model.embed_tokens
         self.layers = nn.ModuleList(
             [
-                SpinLlamaDecoderLayer(
+                SpinQwen2DecoderLayer(
                     model.config, idx, self.layers[idx], quant_config, dtype
                 )
                 for idx in range(len(self.layers))
             ]
         )
         self.norm = model.norm
-
+    
     def forward(
         self,
         input_ids: Optional[torch.LongTensor] = None,
@@ -385,7 +398,7 @@ class SpinLlamaModel(LlamaModel):
         )
 
 
-class SpinLlamaForCausalLM(LlamaForCausalLM):
+class SpinQwen2ForCausalLM(Qwen2ForCausalLM):
     def __init__(
         self,
         config,
@@ -393,7 +406,7 @@ class SpinLlamaForCausalLM(LlamaForCausalLM):
         super().__init__(config)
 
     def _prepare_model(self, quant_config):
-        self.model = SpinLlamaModel(self.model, quant_config, self.dtype)
+        self.model = SpinQwen2Model(self.model, quant_config, self.dtype)
         self.lm_head = QLinear(self.lm_head, quant_config.head, self.dtype)
         self.R1 = None
 
