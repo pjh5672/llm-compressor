@@ -149,7 +149,7 @@ def awq(model, device, tokenizer, n_samples=512, seq_len=2048, verbose=True):
     model.load_state_dict(orig_state_dict)
     apply_scale(model, awq_results["scale"], device)
     apply_clip(model, awq_results["clip"], device)
-    rtn(model, device, mse=False, verbose=False)
+    rtn(model, device, mse=True, verbose=False)
 
     model.config.use_cache = use_cache
     if verbose:
