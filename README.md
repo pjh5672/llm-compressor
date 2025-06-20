@@ -20,7 +20,7 @@ A lightweight, modular toolkit for compressing Large Language Models (LLMs) usin
     + INT / FP / MX format
     + 4-bit / 8-bit Fake quantizer support
     + Symmetric / Asymmetric quantization
-    + RTN / GPTQ / AWQ / SpinQuant algorithms
+    + RTN / GPTQ / AWQ / AWQ+ / SpinQuant algorithms
     + Per-tensor / Per-token / Per-channel / Per-block scaling options
 - ✅ **Plug-and-play integration** with Hugging Face Transformers
 
@@ -30,11 +30,11 @@ A lightweight, modular toolkit for compressing Large Language Models (LLMs) usin
 
 | Model | Available Algorithms | Remark |
 | :---: | :---: | :---: |
-| OPT | RTN / GPTQ / AWQ | - |
-| BLOOM | RTN / GPTQ / AWQ | - |
-| Llama1 | RTN / GPTQ / AWQ / SpinQuant | - |
-| Llama2 | RTN / GPTQ / AWQ / SpinQuant | - |
-| Llama3.x | RTN / GPTQ / AWQ / SpinQuant | - |
+| OPT | RTN / GPTQ / AWQ / AWQ+ | - |
+| BLOOM | RTN / GPTQ / AWQ / AWQ+ | - |
+| Llama1 | RTN / GPTQ / AWQ / AWQ+ / SpinQuant | - |
+| Llama2 | RTN / GPTQ / AWQ / AWQ+ / SpinQuant | - |
+| Llama3.x | RTN / GPTQ / AWQ / AWQ+ / SpinQuant | - |
 | Phi1.5 | RTN / GPTQ / AWQ | - |
 | Phi2 | RTN / GPTQ / AWQ | - |
 | Qwen2.x | RTN / GPTQ / AWQ | - |
