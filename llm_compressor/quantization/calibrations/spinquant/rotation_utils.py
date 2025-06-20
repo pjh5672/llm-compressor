@@ -126,8 +126,7 @@ def rotate_model(model, rotate_mode, device, **kwargs):
 
     R1 = get_orthogonal_matrix(model_dim, rotate_mode, device)
     if rotation_path := kwargs.get("rotation_path"):
-        R1 = torch.load(rotation_path)["R1"].to(device).to(torch.float64)
-
+        R1 = torch.load(rotation_path / "R.bin")["R1"].to(device).to(torch.float64)
     rotate_embeddings(model, R1, device)
     rotate_head(model, R1, device)
     cleanup_memory(verbose=False)
@@ -141,7 +140,7 @@ def rotate_model(model, rotate_mode, device, **kwargs):
 
         if rotation_path := kwargs.get("rotation_path"):
             key = f"model.layers.{i}.self_attn.R2"
-            R2 = torch.load(rotation_path)[key].to(device).to(torch.float64)
+            R2 = torch.load(rotation_path / "R.bin")[key ].to(device).to(torch.float64)
         else:
             R2 = get_orthogonal_matrix(head_dim, rotate_mode, device)
 

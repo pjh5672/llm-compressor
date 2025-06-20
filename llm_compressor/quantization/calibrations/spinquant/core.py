@@ -96,8 +96,9 @@ def spinquant(
         )
         train_data = CustomJsonDataset(tokenizer=tokenizer, block_size=seq_len)
         training_args = TrainingArguments(
+            num_train_epochs=3,
             per_device_train_batch_size=4,
-            per_device_eval_batch_size=2,
+            per_device_eval_batch_size=4,
         )
         optimizer = SGDG(
             trainable_parameters, lr=training_args.learning_rate, stiefel=True
@@ -118,10 +119,7 @@ def spinquant(
             for key, value in cpu_state.items()
             if "R1.weight" in key or "self_attn.R2" in key
         }
-
-        path = os.path.join(str(kwargs.get("save_path")), "R.bin")
-        torch.save(R_dict, path)
-        raise
+        torch.save(R_dict, kwargs.get("save_path") / "R.bin")
 
     use_cache = model.config.use_cache
     model.config.use_cache = False
