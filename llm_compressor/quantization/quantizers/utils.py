@@ -7,6 +7,20 @@ else:
     from formats import _get_min_norm
 
 
+def _reshape(shape, reshape_block_size, axes):
+    for axis in axes:
+        # Reshape to tiles if axis length > reshape_block_size
+        if shape[axis] >= reshape_block_size:
+            assert shape[axis] % reshape_block_size == 0
+            shape[axis + 1] = reshape_block_size
+            shape[axis] = shape[axis] // reshape_block_size
+        # Otherwise preserve length and insert a 1 into the shape
+        else:
+            shape[axis + 1] = shape[axis]
+            shape[axis] = 1
+    return shape
+
+
 def tile_matrix(x, block_size):
     orig_shape = x.shape
     *p, h, w = orig_shape
@@ -69,12 +83,12 @@ def untile_matrix(x, block_size, padded_shape, orig_shape):
 
 
 def _reshape_to_blocks(A, block_size, axes=None):
-    if isinstance(block_size, list) or isinstance(block_size, tuple):
-        if len(block_size) == 2:
-            A, orig_shape, padded_shape = tile_matrix(A, block_size=block_size)
-            return A, None, orig_shape, padded_shape, block_size
-        else:
-            raise Exception("block_size must be 2d-list or 2d-tuple")
+    # if isinstance(block_size, list) or isinstance(block_size, tuple):
+    #     if len(block_size) == 2:
+    #         A, orig_shape, padded_shape = tile_matrix(A, block_size=block_size)
+    #         return A, None, orig_shape, padded_shape, block_size
+    #     else:
+    #         raise Exception("block_size must be 2d-list or 2d-tuple")
 
     if axes is None:
         raise Exception(

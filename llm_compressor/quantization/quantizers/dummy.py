@@ -14,7 +14,6 @@ class DummyQuantizer(nn.Module, BaseQuantizer):
         group_size=None,
         axes=None,
         zero_point=False,
-        device=torch.device("cpu"),
         **kwargs,
     ):
         """

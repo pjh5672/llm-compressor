@@ -18,7 +18,6 @@ class INTQuantizer(nn.Module, BaseQuantizer):
         group_size=-1,
         axes=-1,
         zero_point=False,
-        device=torch.device("cpu"),
         **kwargs,
     ):
         """
@@ -45,8 +44,10 @@ class INTQuantizer(nn.Module, BaseQuantizer):
             f"Not support Format for {self.__class__.__name__}"
         )
         _, self.q_bits, _, max_norm, _ = _get_format_params(format)
-        self.q_max = torch.tensor(max_norm * 2 ** (self.q_bits - 2)).to(device=device)
-        self.q_min = -self.q_max
+        q_max = max_norm * 2 ** (self.q_bits - 2)
+        q_min = -q_max
+        self.register_buffer("q_max", torch.tensor(q_max))
+        self.register_buffer("q_min", torch.tensor(q_min))
         self.str_format = str(format)
         self.mse = False
         self.configure(zero_point=zero_point, group_size=group_size, axes=axes)
@@ -68,7 +69,6 @@ class INTQuantizer(nn.Module, BaseQuantizer):
             self.axes = axes
 
     def find_params(self, x, already_reshaped=False):
-        dtype = x.dtype
 
         if (self.group_size != 0) & (not already_reshaped):
             if self.group_size == -1:  # per-token quant.
@@ -104,17 +104,15 @@ class INTQuantizer(nn.Module, BaseQuantizer):
                 scales = max_val / self.q_max
                 zeros = torch.zeros_like(scales)
 
-        scales.clamp_(min=1e-5)
-
         def _clip_range(x, norm=2.4, grid=100, maxshrink=0.8):
             nonlocal scales, zeros
 
             if self.group_size != 0:
                 best = torch.full(
-                    [x.shape[0], x.shape[1]], float("inf"), dtype=dtype, device=x.device
+                    [x.shape[0], x.shape[1]], float("inf"), dtype=x.dtype, device=x.device
                 )
             else:
-                best = torch.tensor([float("inf")], dtype=dtype, device=x.device)
+                best = torch.tensor([float("inf")], dtype=x.dtype, device=x.device)
 
             for i in range(int(maxshrink * grid)):
                 p = 1 - i / grid
@@ -156,8 +154,9 @@ class INTQuantizer(nn.Module, BaseQuantizer):
         if self.mse:
             _clip_range(x)
 
+        scales.clamp_(min=1e-5)
         assert torch.isnan(scales).sum() == 0
-        return scales.to(dtype), zeros.to(dtype)
+        return scales, zeros
 
     def forward(self, x, **kwargs):
         scales = kwargs.pop("scales", None)
@@ -209,8 +208,12 @@ if __name__ == "__main__":
     print(x)
 
     quantizer = INTQuantizer(
-        format=ElemFormat.int4, group_size=-1, axes=-1, zero_point=True, device=device
+        format=ElemFormat.int4, 
+        group_size=-1, 
+        axes=-1, 
+        zero_point=True, 
     )
+    quantizer.to(device)
     quantizer.mse = False
     # quantizer = INTQuantizer(
     #     format=ElemFormat.int8, group_size=(6, 4), axes=-1, zero_point=False, device=device

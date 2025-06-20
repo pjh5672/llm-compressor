@@ -149,7 +149,7 @@ def awq_plus(model, device, tokenizer, n_samples=512, seq_len=2048, verbose=True
     model.load_state_dict(orig_state_dict)
     apply_scale(model, awq_results["scale"], device)
     apply_clip(model, awq_results["clip"], device)
-    gptq(model, device, n_samples=n_samples, seq_len=seq_len, verbose=False)
+    gptq(model, device, n_samples=n_samples, seq_len=seq_len, mse=True, verbose=False)
 
     model.config.use_cache = use_cache
     if verbose:

@@ -16,7 +16,6 @@ class FPQuantizer(nn.Module):
         group_size=-1,
         axes=-1,
         zero_point=False,
-        device=torch.device("cpu"),
         **kwargs,
     ):
         """
@@ -46,11 +45,11 @@ class FPQuantizer(nn.Module):
         ), f"Not support Format for {self.__class__.__name__}"
 
         ebits, mbits, emax, max_norm, min_norm = _get_format_params(format)
-        self.ebits = torch.tensor(ebits)
-        self.mbits = torch.tensor(mbits)
-        self.emax = torch.tensor(emax)
-        self.max_norm = torch.tensor(max_norm).to(device)
-        self.min_norm = torch.tensor(min_norm)
+        self.register_buffer("ebits", torch.tensor(ebits))
+        self.register_buffer("mbits", torch.tensor(mbits))
+        self.register_buffer("emax", torch.tensor(emax))
+        self.register_buffer("max_norm", torch.tensor(max_norm))
+        self.register_buffer("min_norm", torch.tensor(min_norm))
         self.str_format = str(format)
         self.mse = False
         self.configure(zero_point=zero_point, group_size=group_size, axes=axes)
@@ -72,7 +71,6 @@ class FPQuantizer(nn.Module):
             self.axes = axes
 
     def find_params(self, x, already_reshaped=False):
-        dtype = x.dtype
 
         if (self.group_size != 0) & (not already_reshaped):
             if self.group_size == -1:  # per-token quant.
@@ -108,17 +106,15 @@ class FPQuantizer(nn.Module):
                 scales = max_val / self.max_norm
                 zeros = torch.zeros_like(scales)
 
-        scales.clamp_(min=1e-5)
-
         def _clip_range(x, norm=2.4, grid=100, maxshrink=0.8):
             nonlocal scales, zeros
 
             if self.group_size != 0:
                 best = torch.full(
-                    [x.shape[0], x.shape[1]], float("inf"), dtype=dtype, device=x.device
+                    [x.shape[0], x.shape[1]], float("inf"), dtype=x.dtype, device=x.device
                 )
             else:
-                best = torch.tensor([float("inf")], dtype=dtype, device=x.device)
+                best = torch.tensor([float("inf")], dtype=x.dtype, device=x.device)
 
             for i in range(int(maxshrink * grid)):
                 p = 1 - i / grid
@@ -156,8 +152,9 @@ class FPQuantizer(nn.Module):
         if self.mse:
             _clip_range(x)
 
+        scales.clamp_(min=1e-5)
         assert torch.isnan(scales).sum() == 0
-        return scales.to(dtype), zeros.to(dtype)
+        return scales, zeros
 
     def forward(self, x, **kwargs):
         scales = kwargs.pop("scales", None)
@@ -212,20 +209,13 @@ if __name__ == "__main__":
     x = torch.randn(4, 6).to(device=device)
     print(x)
 
-    # quantizer = FPQuantizer(
-    #     format=ElemFormat.fp8_e4m3,
-    #     group_size=(2, 6),
-    #     axes=-1,
-    #     zero_point=False,
-    #     device=device,
-    # )
     quantizer = FPQuantizer(
         format=ElemFormat.fp4_e2m1,
         group_size=-1,
         axes=-1,
-        zero_point=True,
-        device=device,
+        zero_point=False,
     )
+    quantizer.to(device)
     quantizer.mse = False
     # print(quantizer)
     # x_dq = quantizer(x)

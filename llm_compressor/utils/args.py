@@ -33,8 +33,7 @@ class PruneConfigParser:
 
 
 class QuantConfigParser:
-    def __init__(self, device):
-        self.device = device
+    def __init__(self):
         self.quant_config = EasyDict({})
         self.linear = {}
         self.matmul = {}
@@ -81,7 +80,6 @@ class QuantConfigParser:
             config["group_size"] = None
             config["axes"] = None
             config["zero_point"] = None
-            config["device"] = None
             return config
 
         pattern = (
@@ -93,12 +91,14 @@ class QuantConfigParser:
         m = re.match(pattern, s)
         if m:
             result = m.groupdict()
-            config["type"] = self.define_qtype(result["format"])
+            dtype = self.define_qtype(result["format"])
+            config["type"] = dtype
             config["format"] = result["format"].replace("mx", "")
             config["group_size"] = self.parse_group_values(result["group"])
             config["axes"] = -1 if result["wise"] == "rw" else -2
             config["zero_point"] = result["zp"] == "zp"
-            config["device"] = self.device
+            if dtype == "mx":
+                config["scale_ebits"] = 8
             return config
 
         raise RuntimeError(f"Cannot update Qconfig. No matched pattern, got {s}.")
@@ -201,7 +201,7 @@ def build_parser(root_dir):
         "--device", default="0", help="cuda devices, i.e. 0 or 0,1,2,3 or cpu"
     )
 
-    parser.add_argument("--seed", type=int, default=15, help="Inference seed")
+    parser.add_argument("--seed", type=int, default=0, help="Inference seed")
 
     args = parser.parse_args()
     args.exp_dir = root_dir / "experiments" / args.exp_name
@@ -218,7 +218,7 @@ def build_parser(root_dir):
 
     pparser = PruneConfigParser()
     args.prune_config = pparser.build_cfg(sparsity=args.sparsity)
-    qparser = QuantConfigParser(device)
+    qparser = QuantConfigParser()
     args.quant_config = qparser.build_cfg(
         args.weight, args.act_in, args.act_out, args.head
     )

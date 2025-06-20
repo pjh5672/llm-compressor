@@ -77,8 +77,8 @@ class QuantPhiAttention(PhiAttention):
             attention.layer_idx,
         )
         self.quant_config = quant_config
-        self.qk_matmul = QMatmul(self.quant_config, axes=-2)  # Q@K.T - column-wise
-        self.sv_matmul = QMatmul(self.quant_config, axes=-1)  # S@V - row-wise
+        self.qk_matmul = QMatmul(self.quant_config, axes=-1)
+        self.sv_matmul = QMatmul(self.quant_config, axes=-2)
         self.q_proj = attention.q_proj
         self.k_proj = attention.k_proj
         self.v_proj = attention.v_proj
@@ -191,7 +191,7 @@ class CompressPhiForCausalLM(PhiForCausalLM, CompressForCausalLM):
             self._prepare_attention_module(quant_config)
 
             if quant_method == "rtn":
-                rtn(self, device, mse=False, verbose=True)
+                rtn(self, device, mse=True, verbose=True)
 
             elif quant_method == "awq":
                 n_samples = kwargs.get("n_samples", 128)
@@ -212,6 +212,7 @@ class CompressPhiForCausalLM(PhiForCausalLM, CompressForCausalLM):
                     device,
                     n_samples=n_samples,
                     seq_len=seq_len,
+                    mse=True,
                     verbose=True,
                 )
             elif quant_method == "awq_plus":
@@ -234,7 +235,7 @@ class CompressPhiForCausalLM(PhiForCausalLM, CompressForCausalLM):
                     tokenizer,
                     n_samples=n_samples,
                     seq_len=seq_len,
-                    mse=False,
+                    mse=True,
                     verbose=True,
                 )
         else:
@@ -301,82 +302,17 @@ class CompressPhiForCausalLM(PhiForCausalLM, CompressForCausalLM):
 
 
 if __name__ == "__main__":
-    from easydict import EasyDict
     from evaluation.eval import LMEvaluator
+    from utils.args import build_parser, QuantConfigParser
 
-    group_size = -1
-    device = torch.device("cuda:0")
-    quant_config = EasyDict({})
-    quant_config.linear = EasyDict({})
-    quant_config.linear.weight = {
-        "type": "int",
-        "format": "int4",
-        "group_size": group_size,
-        "axes": -1,
-        "zero_point": False,
-        "device": device,
-    }
-    quant_config.linear.act_in = {
-        "type": "int",
-        "format": "int8",
-        "group_size": group_size,
-        "axes": -1,
-        "zero_point": False,
-        "device": device,
-    }
-    quant_config.linear.act_out = {
-        "type": "int",
-        "format": "int8",
-        "group_size": group_size,
-        "axes": -1,
-        "zero_point": False,
-        "device": device,
-    }
+    ROOT = Path(__file__).resolve().parents[1]
+    args, device = build_parser(ROOT)
 
-    quant_config.matmul = EasyDict({})
-    quant_config.matmul.act_in = {
-        "type": "int",
-        "format": "int8",
-        "group_size": group_size,
-        "axes": -1,
-        "zero_point": False,
-        "device": device,
-    }
-    quant_config.matmul.act_out = {
-        "type": "int",
-        "format": "int8",
-        "group_size": group_size,
-        "axes": -1,
-        "zero_point": False,
-        "device": device,
-    }
-
-    quant_config.head = EasyDict({})
-    quant_config.head.weight = {
-        "type": "int",
-        "format": "int8",
-        "group_size": group_size,
-        "axes": -1,
-        "zero_point": False,
-        "device": device,
-    }
-    quant_config.head.act_in = {
-        "type": None,
-        "format": None,
-        "group_size": None,
-        "axes": None,
-        "zero_point": None,
-        "device": None,
-    }
-    quant_config.head.act_out = {
-        "type": None,
-        "format": None,
-        "group_size": None,
-        "axes": None,
-        "zero_point": None,
-        "device": None,
-    }
-
+    qparser = QuantConfigParser()
+    quant_config = qparser.build_cfg(
+        args.weight, args.act_in, args.act_out, args.head
+    )
+    
     model_path = "d:\\models\\phi-1.5"
     tokenizer = AutoTokenizer.from_pretrained(model_path, use_fast=False)
     model = CompressPhiForCausalLM.from_pretrained(

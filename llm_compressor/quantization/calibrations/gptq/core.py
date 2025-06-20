@@ -235,7 +235,7 @@ def update_weight(
                 w = W1[:, i : i + group_size]
                 d = Hinv1[i : i + group_size, i : i + group_size]
                 s = scales[:, [j // group_size], :]
-                z = zeros if zeros == 0 else zeros[:, [j // group_size], :]
+                z = zeros[:, [j // group_size], :]
                 q = layer.weight_quantizer(w, scales=s, zeros=z)
                 Q1[:, i : i + group_size] = q
                 err1 = (w - q) / torch.diag(d)

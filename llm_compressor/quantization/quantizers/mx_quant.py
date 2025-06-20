@@ -7,9 +7,6 @@ if __package__:
         _reshape_to_blocks,
         _undo_reshape_to_blocks,
         _quantize_elemwise_core,
-        _safe_lshift,
-        _safe_rshift,
-        _round_mantissa,
     )
 else:
     from formats import ElemFormat, FP32_MIN_NORMAL, _get_format_params
@@ -17,9 +14,6 @@ else:
         _reshape_to_blocks,
         _undo_reshape_to_blocks,
         _quantize_elemwise_core,
-        _safe_lshift,
-        _safe_rshift,
-        _round_mantissa,
     )
 
 
@@ -30,7 +24,6 @@ class MXQuantizer(nn.Module):
         group_size=32,
         axes=-1,
         zero_point=False,
-        device=torch.device("cpu"),
         **kwargs,
     ):
         """
@@ -51,13 +44,13 @@ class MXQuantizer(nn.Module):
         ), f"Not support Format for {self.__class__.__name__}"
 
         ebits, mbits, emax, max_norm, min_norm = _get_format_params(format)
-        self.ebits = torch.tensor(ebits).to(device)
-        self.mbits = torch.tensor(mbits).to(device)
-        self.emax = torch.tensor(emax).to(device)
-        self.max_norm = torch.tensor(max_norm).to(device)
-        self.min_norm = torch.tensor(min_norm).to(device)
-        self.scale_ebits = kwargs.pop("scale_ebits", 8)
-        self.scale_mbits = kwargs.pop("scale_mbits", 0)
+        self.register_buffer("ebits", torch.tensor(ebits))
+        self.register_buffer("mbits", torch.tensor(mbits))
+        self.register_buffer("emax", torch.tensor(emax))
+        self.register_buffer("max_norm", torch.tensor(max_norm))
+        self.register_buffer("min_norm", torch.tensor(min_norm))
+        self.scale_ebits = kwargs.get("scale_ebits", 8)
+        self.scale_emax = 2 ** (self.scale_ebits - 1) - 1
         self.str_format = str(format)
         self.mse = False
         self.configure(zero_point=zero_point, group_size=group_size, axes=axes)
@@ -68,7 +61,6 @@ class MXQuantizer(nn.Module):
         self.axes = axes
 
     def find_params(self, x, already_reshaped=False):
-        dtype = x.dtype
 
         if not already_reshaped:
             x, self.shared_axes, *_ = _reshape_to_blocks(
@@ -84,35 +76,19 @@ class MXQuantizer(nn.Module):
             self.shared_axes = sorted(axes)
 
         def _get_scales(max_val):
-            # Get shared exponents & shared mantissas (NanoMantissa from Nanoscaling FP:NxFP)
+            # Get shared exponents & shared mantissas
             shared_mts = torch.log2(
                 max_val + FP32_MIN_NORMAL * (max_val == 0).type(max_val.dtype)
             )
             shared_exp = torch.floor(shared_mts)
             # Offset the max exponent by the largest representable exponent
             # in the element data format
-            shared_exp = shared_exp - self.emax
+            shared_exp -= self.emax
 
             # Restrict to [-emax, emax] range
-            scale_emax = 2 ** (self.scale_ebits - 1) - 1
-            shared_exp[shared_exp > scale_emax] = scale_emax + 1
-            shared_exp[shared_exp < -scale_emax] = -scale_emax
-
-            if self.scale_mbits > 0:
-                shared_mts = 2 ** (shared_mts - shared_exp)
-                shared_mts = _safe_lshift(shared_mts, self.scale_mbits, None)
-                shared_mts = _round_mantissa(
-                    shared_mts, self.scale_mbits, "nearest", clamp=False
-                )
-                shared_mts = _safe_rshift(shared_mts, self.scale_mbits, None)
-                shared_mts = torch.clamp(
-                    shared_mts,
-                    min=1.0,
-                    max=1 + ((2**self.scale_mbits) - 1) / (2**self.scale_mbits),
-                )
-                return (2**shared_exp) * shared_mts
-            else:
-                return 2**shared_exp
+            shared_exp[shared_exp > self.scale_emax] = self.scale_emax + 1
+            shared_exp[shared_exp < -self.scale_emax] = -self.scale_emax
+            return 2 ** shared_exp
 
         if self.zero_point:
             max_val = x.amax(dim=self.axes, keepdim=True)
@@ -122,22 +98,18 @@ class MXQuantizer(nn.Module):
         else:
             max_val = x.abs().amax(dim=self.axes, keepdim=True)
             min_val = -max_val
-            zeros = torch.zeros(
-                (x.shape[0], x.shape[1], 1), device=x.device, dtype=dtype
-            )
+            zeros = torch.zeros_like(max_val)
             scales = _get_scales(max_val)
-
-        scales.clamp_(min=1e-5)
 
         def _clip_range(x, norm=2.4, grid=100, maxshrink=0.8):
             nonlocal scales, zeros
 
             if self.group_size != 0:
                 best = torch.full(
-                    [x.shape[0], x.shape[1]], float("inf"), dtype=dtype, device=x.device
+                    [x.shape[0], x.shape[1]], float("inf"), dtype=x.dtype, device=x.device
                 )
             else:
-                best = torch.tensor([float("inf")], dtype=dtype, device=x.device)
+                best = torch.tensor([float("inf")], dtype=x.dtype, device=x.device)
 
             for i in range(int(maxshrink * grid)):
                 p = 1 - i / grid
@@ -175,8 +147,9 @@ class MXQuantizer(nn.Module):
         if self.mse:
             _clip_range(x)
 
+        scales.clamp_(min=1e-5)
         assert torch.isnan(scales).sum() == 0
-        return scales.to(dtype), zeros.to(dtype)
+        return scales, zeros
 
     def forward(self, x, **kwargs):
         scales = kwargs.pop("scales", None)
@@ -226,24 +199,25 @@ if __name__ == "__main__":
     torch.manual_seed(0)
 
     device = torch.device("cuda")
-    x = torch.randn(4, 32).to(device=device)
+    x = torch.randn(4, 6).to(device=device)
     # print(x)
 
     quantizer = MXQuantizer(
         format=ElemFormat.int4,
-        group_size=6,
+        group_size=32,
         axes=-1,
-        zero_point=True,
-        device=device,
+        zero_point=False,
         scale_ebits=8,
         scale_mbits=0,
     )
-    quantizer.mse = False
+    quantizer.to(device)
     # quantizer = MXQuantizer(
     #     format=ElemFormat.fp8_e4m3, group_size=32, axes=-1, zero_point=False, device=device,
     #     scale_ebits=8, scale_mbits = 1,
     # )
-    print(quantizer)
+    # print(quantizer)
     x_dq = quantizer(x)
+    print(x)
+    print(x_dq)
     # print(x_dq)
     print(((x - x_dq) ** 2).mean())
