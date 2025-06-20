@@ -79,8 +79,8 @@ class QuantLlamaAttention(LlamaAttention):
             attention.layer_idx,
         )
         self.quant_config = quant_config
-        self.qk_matmul = QMatmul(self.quant_config, axes=-2)  # Q@K.T - column-wise
-        self.sv_matmul = QMatmul(self.quant_config, axes=-1)  # S@V - row-wise
+        self.qk_matmul = QMatmul(self.quant_config, axes=-1)
+        self.sv_matmul = QMatmul(self.quant_config, axes=-2)
         self.q_proj = attention.q_proj
         self.k_proj = attention.k_proj
         self.v_proj = attention.v_proj
@@ -289,82 +289,7 @@ class CompressLlamaForCausalLM(LlamaForCausalLM, CompressForCausalLM):
 
 
 if __name__ == "__main__":
-    from easydict import EasyDict
     from evaluation.eval import LMEvaluator
-
-    group_size = -1
-    device = torch.device("cuda:0")
-    quant_config = EasyDict({})
-    quant_config.linear = EasyDict({})
-    quant_config.linear.weight = {
-        "type": "int",
-        "format": "int4",
-        "group_size": group_size,
-        "axes": -1,
-        "zero_point": False,
-        "device": device,
-    }
-    quant_config.linear.act_in = {
-        "type": "int",
-        "format": "int8",
-        "group_size": group_size,
-        "axes": -1,
-        "zero_point": False,
-        "device": device,
-    }
-    quant_config.linear.act_out = {
-        "type": "int",
-        "format": "int8",
-        "group_size": group_size,
-        "axes": -1,
-        "zero_point": False,
-        "device": device,
-    }
-
-    quant_config.matmul = EasyDict({})
-    quant_config.matmul.act_in = {
-        "type": "int",
-        "format": "int8",
-        "group_size": group_size,
-        "axes": -1,
-        "zero_point": False,
-        "device": device,
-    }
-    quant_config.matmul.act_out = {
-        "type": "int",
-        "format": "int8",
-        "group_size": group_size,
-        "axes": -1,
-        "zero_point": False,
-        "device": device,
-    }
-
-    quant_config.head = EasyDict({})
-    quant_config.head.weight = {
-        "type": "int",
-        "format": "int8",
-        "group_size": group_size,
-        "axes": -1,
-        "zero_point": False,
-        "device": device,
-    }
-    quant_config.head.act_in = {
-        "type": None,
-        "format": None,
-        "group_size": None,
-        "axes": None,
-        "zero_point": None,
-        "device": None,
-    }
-    quant_config.head.act_out = {
-        "type": None,
-        "format": None,
-        "group_size": None,
-        "axes": None,
-        "zero_point": None,
-        "device": None,
-    }
-
     from utils.args import build_parser, QuantConfigParser
 
     ROOT = Path(__file__).resolve().parents[1]
@@ -392,7 +317,7 @@ if __name__ == "__main__":
         quant_method="rtn",
         quant_config=quant_config,
         device=device,
-        quantize=args.quantize,
+        quantize=True,
         **quant_kwargs,
     )
     # print(model)

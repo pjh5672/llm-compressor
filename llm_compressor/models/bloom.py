@@ -45,8 +45,8 @@ class QuantBloomAttention(BloomAttention):
             attention.layer_idx,
         )
         self.quant_config = quant_config
-        self.qk_matmul = QMatmul(self.quant_config, axes=-2)  # Q@K.T - column-wise
-        self.sv_matmul = QMatmul(self.quant_config, axes=-1)  # S@V - row-wise
+        self.qk_matmul = QMatmul(self.quant_config, axes=-1)
+        self.sv_matmul = QMatmul(self.quant_config, axes=-2)
         self.query_key_value = attention.query_key_value
         self.dense = attention.dense
         self.attention_dropout = attention.attention_dropout
@@ -299,82 +299,17 @@ class CompressBloomForCausalLM(BloomForCausalLM, CompressForCausalLM):
 
 
 if __name__ == "__main__":
-    from easydict import EasyDict
     from evaluation.eval import LMEvaluator
+    from utils.args import build_parser, QuantConfigParser
 
-    group_size = -1
-    device = torch.device("cuda:0")
-    quant_config = EasyDict({})
-    quant_config.linear = EasyDict({})
-    quant_config.linear.weight = {
-        "type": "int",
-        "format": "int4",
-        "group_size": group_size,
-        "axes": -1,
-        "zero_point": False,
-        "device": device,
-    }
-    quant_config.linear.act_in = {
-        "type": "int",
-        "format": "int8",
-        "group_size": group_size,
-        "axes": -1,
-        "zero_point": False,
-        "device": device,
-    }
-    quant_config.linear.act_out = {
-        "type": "int",
-        "format": "int8",
-        "group_size": group_size,
-        "axes": -1,
-        "zero_point": False,
-        "device": device,
-    }
+    ROOT = Path(__file__).resolve().parents[1]
+    args, device = build_parser(ROOT)
 
-    quant_config.matmul = EasyDict({})
-    quant_config.matmul.act_in = {
-        "type": "int",
-        "format": "int8",
-        "group_size": group_size,
-        "axes": -1,
-        "zero_point": False,
-        "device": device,
-    }
-    quant_config.matmul.act_out = {
-        "type": "int",
-        "format": "int8",
-        "group_size": group_size,
-        "axes": -1,
-        "zero_point": False,
-        "device": device,
-    }
-
-    quant_config.head = EasyDict({})
-    quant_config.head.weight = {
-        "type": "int",
-        "format": "int8",
-        "group_size": group_size,
-        "axes": -1,
-        "zero_point": False,
-        "device": device,
-    }
-    quant_config.head.act_in = {
-        "type": None,
-        "format": None,
-        "group_size": None,
-        "axes": None,
-        "zero_point": None,
-        "device": None,
-    }
-    quant_config.head.act_out = {
-        "type": None,
-        "format": None,
-        "group_size": None,
-        "axes": None,
-        "zero_point": None,
-        "device": None,
-    }
-
+    qparser = QuantConfigParser()
+    quant_config = qparser.build_cfg(
+        args.weight, args.act_in, args.act_out, args.head
+    )
+    
     model_path = "d:\\models\\bloom-560m"
     tokenizer = AutoTokenizer.from_pretrained(model_path, use_fast=False)
     model = CompressBloomForCausalLM.from_pretrained(

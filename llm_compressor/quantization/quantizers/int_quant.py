@@ -109,10 +109,10 @@ class INTQuantizer(nn.Module, BaseQuantizer):
 
             if self.group_size != 0:
                 best = torch.full(
-                    [x.shape[0], x.shape[1]], float("inf"), dtype=dtype, device=x.device
+                    [x.shape[0], x.shape[1]], float("inf"), dtype=x.dtype, device=x.device
                 )
             else:
-                best = torch.tensor([float("inf")], dtype=dtype, device=x.device)
+                best = torch.tensor([float("inf")], dtype=x.dtype, device=x.device)
 
             for i in range(int(maxshrink * grid)):
                 p = 1 - i / grid

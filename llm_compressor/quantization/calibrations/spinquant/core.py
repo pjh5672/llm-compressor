@@ -8,7 +8,6 @@ if str(PATH) not in sys.path:
     sys.path.append(str(PATH))
 
 from utils.general import LOGGER  # noqa: E402
-from quantization.calibrations.rtn.core import rtn  # noqa: E402, F401
 from quantization.calibrations.gptq.core import gptq  # noqa: E402
 from quantization.calibrations.spinquant.rotation_utils import rotate_model  # noqa: E402
 from llm_compressor.quantization.calibrations.spinquant.fuse_norm_utils import (
@@ -34,7 +33,6 @@ def spinquant(
 
     fuse_layer_norms(model)
     rotate_model(model, "hadamard", device, verbose=True)
-    # rtn(model, device, mse=mse, verbose=False)
     gptq(model, device, n_samples, seq_len, mse=mse, verbose=False)
 
     model.config.use_cache = use_cache
