@@ -126,9 +126,10 @@ def spinquant(
         )
         train_data = CustomJsonDataset(tokenizer=tokenizer, block_size=seq_len)
         training_args = TrainingArguments(
-            num_train_epochs=0.2,
+            num_train_epochs=3,
             per_device_train_batch_size=4,
             per_device_eval_batch_size=4,
+            save_strategy="no",
         )
         optimizer = SGDG(
             trainable_parameters, lr=training_args.learning_rate, stiefel=True
@@ -168,8 +169,8 @@ def spinquant(
     else:
         rotate_model(model, mode, device)
 
-    rtn(model, device, mse=mse, verbose=False)
-    # gptq(model, device, n_samples, seq_len, mse=mse, verbose=False)
+    # rtn(model, device, mse=mse, verbose=False)
+    gptq(model, device, n_samples, seq_len, mse=mse, verbose=False)
 
     model.config.use_cache = use_cache
     if verbose:
