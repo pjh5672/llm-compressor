@@ -35,10 +35,10 @@ A lightweight, modular toolkit for compressing Large Language Models (LLMs) usin
 | Llama1 | RTN / GPTQ / AWQ / AWQ+ / SpinQuant | - |
 | Llama2 | RTN / GPTQ / AWQ / AWQ+ / SpinQuant | - |
 | Llama3.x | RTN / GPTQ / AWQ / AWQ+ / SpinQuant | - |
-| Phi1.5 | RTN / GPTQ / AWQ | - |
-| Phi2 | RTN / GPTQ / AWQ | - |
-| Qwen2.x | RTN / GPTQ / AWQ | - |
-| Qwen3 | RTN / GPTQ / AWQ | - |
+| Phi1.5 | RTN / GPTQ / AWQ / AWQ+ | - |
+| Phi2 | RTN / GPTQ / AWQ / AWQ+ | - |
+| Qwen2.x | RTN / GPTQ / AWQ / AWQ+ | - |
+| Qwen3 | RTN / GPTQ / AWQ / AWQ+ | - |
 
 ---
 
