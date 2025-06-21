@@ -71,6 +71,7 @@ class SpinQwen2MLP(Qwen2MLP):
         mlp: Qwen2MLP,
         quant_config,
         dtype,
+        mse=False,
     ):
         super().__init__(
             mlp.config,
@@ -84,6 +85,9 @@ class SpinQwen2MLP(Qwen2MLP):
         self.down_proj = QLinear(
             linear=mlp.down_proj, quant_config=quant_config.linear, dtype=dtype
         )
+        self.gate_proj.weight_quantizer.mse = mse
+        self.up_proj.weight_quantizer.mse = mse
+        self.down_proj.weight_quantizer.mse = mse
 
     def forward(self, x, R1):
         down_proj = self.down_proj(
@@ -102,6 +106,7 @@ class SpinQwen2Attention(Qwen2Attention):
         attention: Qwen2Attention,
         quant_config,
         dtype,
+        mse=False,
     ):
         super().__init__(
             attention.config,
@@ -121,6 +126,10 @@ class SpinQwen2Attention(Qwen2Attention):
         self.o_proj = QLinear(
             linear=attention.o_proj, quant_config=quant_config.linear, dtype=dtype
         )
+        self.q_proj.weight_quantizer.mse = mse
+        self.k_proj.weight_quantizer.mse = mse
+        self.v_proj.weight_quantizer.mse = mse
+        self.o_proj.weight_quantizer.mse = mse
         self.layer_types = [
             "sliding_attention"
             if attention.config.sliding_window is not None
@@ -201,13 +210,14 @@ class SpinQwen2DecoderLayer(Qwen2DecoderLayer):
         decoder: Qwen2DecoderLayer,
         quant_config,
         dtype,
+        mse=False,
     ):
         super().__init__(
             config,
             layer_idx,
         )
-        self.self_attn = SpinQwen2Attention(decoder.self_attn, quant_config, dtype)
-        self.mlp = SpinQwen2MLP(decoder.mlp, quant_config, dtype)
+        self.self_attn = SpinQwen2Attention(decoder.self_attn, quant_config, dtype, mse)
+        self.mlp = SpinQwen2MLP(decoder.mlp, quant_config, dtype, mse)
         self.input_layernorm = decoder.input_layernorm
         self.post_attention_layernorm = decoder.post_attention_layernorm
 
@@ -265,6 +275,7 @@ class SpinQwen2Model(Qwen2Model):
         model: Qwen2Model,
         quant_config,
         dtype,
+        mse=False,
     ):
         super().__init__(model.config)
 
@@ -272,7 +283,7 @@ class SpinQwen2Model(Qwen2Model):
         self.layers = nn.ModuleList(
             [
                 SpinQwen2DecoderLayer(
-                    model.config, idx, self.layers[idx], quant_config, dtype
+                    model.config, idx, self.layers[idx], quant_config, dtype, mse
                 )
                 for idx in range(len(self.layers))
             ]
@@ -405,9 +416,12 @@ class SpinQwen2ForCausalLM(Qwen2ForCausalLM):
     ):
         super().__init__(config)
 
-    def _prepare_model(self, quant_config):
-        self.model = SpinQwen2Model(self.model, quant_config, self.dtype)
+    def _prepare_model(self, quant_config, mse):
+        self.model = SpinQwen2Model(self.model, quant_config, self.dtype, mse)
         self.lm_head = QLinear(self.lm_head, quant_config.head, self.dtype)
+        self.lm_head.weight_quantizer.mse = mse
+        W = self.lm_head.weight.data
+        self.lm_head.weight.data = self.lm_head.weight_quantizer(W)
         self.R1 = None
 
     def forward(

@@ -31,6 +31,7 @@ from quantization.calibrations.spinquant.rotation_utils import (
 from quantization.calibrations.spinquant.fuse_norm_utils import fuse_layer_norms  # noqa: E402
 from quantization.calibrations.spinquant.optimizer import SGDG  # noqa: E402
 from utils.dataset import CustomJsonDataset  # noqa: E402
+from utils.torch_utils import cleanup_memory  # noqa: E402
 
 
 class RotateModule(nn.Module):
@@ -64,21 +65,21 @@ def spinquant(
         quant_config = kwargs.get("quant_config")
 
         if isinstance(model, LlamaForCausalLM):
-            model = SpinLlamaForCausalLM.from_pretrained(
+            spin_model = SpinLlamaForCausalLM.from_pretrained(
                 model_path,
                 attn_implementation="eager",
                 torch_dtype=torch.float32,
                 device_map="auto",
             )
         elif isinstance(model, Qwen2ForCausalLM):
-            model = SpinQwen2ForCausalLM.from_pretrained(
+            spin_model = SpinQwen2ForCausalLM.from_pretrained(
                 model_path,
                 attn_implementation="eager",
                 torch_dtype=torch.float32,
                 device_map="auto",
             )
         elif isinstance(model, Qwen3ForCausalLM):
-            model = SpinQwen3ForCausalLM.from_pretrained(
+            spin_model = SpinQwen3ForCausalLM.from_pretrained(
                 model_path,
                 attn_implementation="eager",
                 torch_dtype=torch.float32,
@@ -87,27 +88,33 @@ def spinquant(
         else:
             raise RuntimeError(f"Not support model yet, got {model_path}")
 
-        model._prepare_model(quant_config=quant_config)
+        spin_model._prepare_model(quant_config=quant_config, mse=mse)
 
-        process_word_embeddings = model.config.tie_word_embeddings
+        process_word_embeddings = spin_model.config.tie_word_embeddings
         if process_word_embeddings:
-            model.config.tie_word_embeddings = False
-            model.lm_head.weight.data = model.model.embed_tokens.weight.data.clone()
+            spin_model.config.tie_word_embeddings = False
+            spin_model.lm_head.weight.data = (
+                spin_model.model.embed_tokens.weight.data.clone()
+            )
 
-        for param in model.parameters():
+        for param in spin_model.parameters():
             param.requires_grad = False
 
-        R1 = random_hadamard_matrix(model.config.hidden_size, model.device)
-        model.R1 = RotateModule(R1, model.device)
-        for i in range(model.config.num_hidden_layers):
-            head_dim = model.config.hidden_size // model.config.num_attention_heads
-            R2 = random_hadamard_matrix(head_dim, model.device)
-            model.model.layers[i].self_attn.R2 = RotateModule(R2, model.device)
+        R1 = random_hadamard_matrix(spin_model.config.hidden_size, spin_model.device)
+        spin_model.R1 = RotateModule(R1, spin_model.device)
+        for i in range(spin_model.config.num_hidden_layers):
+            head_dim = (
+                spin_model.config.hidden_size // spin_model.config.num_attention_heads
+            )
+            R2 = random_hadamard_matrix(head_dim, spin_model.device)
+            spin_model.model.layers[i].self_attn.R2 = RotateModule(
+                R2, spin_model.device
+            )
 
-        model.seqlen = seq_len
-        trainable_parameters = [model.R1.weight] + [
-            model.model.layers[i].self_attn.R2.weight
-            for i in range(model.config.num_hidden_layers)
+        spin_model.seqlen = seq_len
+        trainable_parameters = [spin_model.R1.weight] + [
+            spin_model.model.layers[i].self_attn.R2.weight
+            for i in range(spin_model.config.num_hidden_layers)
         ]
         tokenizer = AutoTokenizer.from_pretrained(
             pretrained_model_name_or_path=model_path,
@@ -119,7 +126,7 @@ def spinquant(
         )
         train_data = CustomJsonDataset(tokenizer=tokenizer, block_size=seq_len)
         training_args = TrainingArguments(
-            num_train_epochs=3,
+            num_train_epochs=0.2,
             per_device_train_batch_size=4,
             per_device_eval_batch_size=4,
         )
@@ -127,7 +134,7 @@ def spinquant(
             trainable_parameters, lr=training_args.learning_rate, stiefel=True
         )
         trainer = Trainer(
-            model=model,
+            model=spin_model,
             tokenizer=tokenizer,
             args=training_args,
             train_dataset=train_data,
@@ -143,6 +150,8 @@ def spinquant(
             if "R1.weight" in key or "self_attn.R2" in key
         }
         torch.save(R_dict, os.path.join(kwargs.get("save_path"), "R.bin"))
+        del spin_model
+        cleanup_memory(verbose=False)
 
     use_cache = model.config.use_cache
     model.config.use_cache = False
