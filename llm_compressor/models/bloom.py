@@ -27,7 +27,6 @@ from quantization.calibrations.rtn.core import rtn  # noqa: E402
 from quantization.calibrations.awq.core import awq  # noqa: E402
 from quantization.calibrations.gptq.core import gptq  # noqa: E402
 from quantization.calibrations.awq_plus.core import awq_plus  # noqa: E402
-from quantization.calibrations.spinquant.core import spinquant  # noqa: E402
 
 
 class QuantBloomAttention(BloomAttention):

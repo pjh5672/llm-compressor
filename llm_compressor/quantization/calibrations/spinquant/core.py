@@ -20,7 +20,7 @@ if str(PATH) not in sys.path:
 
 from utils.general import LOGGER  # noqa: E402
 from quantization.calibrations.rtn.core import rtn  # noqa: E402, F401
-from quantization.calibrations.gptq.core import gptq  # noqa: E402
+from quantization.calibrations.gptq.core import gptq  # noqa: E402, F401
 from quantization.calibrations.spinquant.modeling.llama import SpinLlamaForCausalLM  # noqa: E402
 from quantization.calibrations.spinquant.modeling.qwen2 import SpinQwen2ForCausalLM  # noqa: E402
 from quantization.calibrations.spinquant.modeling.qwen3 import SpinQwen3ForCausalLM  # noqa: E402
@@ -62,7 +62,7 @@ def spinquant(
         LOGGER.info("Optimizing rotation matrix...")
         model_path = model.config._name_or_path
         quant_config = kwargs.get("quant_config")
-        
+
         if isinstance(model, LlamaForCausalLM):
             model = SpinLlamaForCausalLM.from_pretrained(
                 model_path,
@@ -86,7 +86,7 @@ def spinquant(
             )
         else:
             raise RuntimeError(f"Not support model yet, got {model_path}")
-        
+
         model._prepare_model(quant_config=quant_config)
 
         process_word_embeddings = model.config.tie_word_embeddings
@@ -119,7 +119,7 @@ def spinquant(
         )
         train_data = CustomJsonDataset(tokenizer=tokenizer, block_size=seq_len)
         training_args = TrainingArguments(
-            num_train_epochs=1,
+            num_train_epochs=3,
             per_device_train_batch_size=4,
             per_device_eval_batch_size=4,
         )
@@ -142,7 +142,7 @@ def spinquant(
             for key, value in cpu_state.items()
             if "R1.weight" in key or "self_attn.R2" in key
         }
-        torch.save(R_dict, kwargs.get("save_path") / "R.bin")
+        torch.save(R_dict, os.path.join(kwargs.get("save_path"), "R.bin"))
 
     use_cache = model.config.use_cache
     model.config.use_cache = False
@@ -155,7 +155,7 @@ def spinquant(
 
     fuse_layer_norms(model)
     if mode == "optimize":
-        rotate_model(model, mode, device, rotation_path=kwargs.get("save_path"))
+        rotate_model(model, "hadamard", device, rotation_path=kwargs.get("save_path"))
     else:
         rotate_model(model, mode, device)
 

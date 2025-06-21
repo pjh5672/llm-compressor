@@ -321,10 +321,7 @@ if __name__ == "__main__":
         torch_dtype=torch.bfloat16,
         device_map="cpu",
     )
-    quant_kwargs = {
-        "n_samples": 128,
-        "seq_len": 512,
-    }
+    quant_kwargs = {"n_samples": 128, "seq_len": 512, "save_path": args.exp_dir}
     model.quantize(
         tokenizer=tokenizer,
         quant_method="spinquant",

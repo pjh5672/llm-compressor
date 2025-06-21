@@ -218,7 +218,7 @@ class CompressLlamaForCausalLM(LlamaForCausalLM, CompressForCausalLM):
                 spinquant(
                     self,
                     device,
-                    mode="optim",
+                    mode="optimize",
                     n_samples=n_samples,
                     seq_len=seq_len,
                     mse=True,

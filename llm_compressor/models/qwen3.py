@@ -226,7 +226,7 @@ class CompressQwen3ForCausalLM(Qwen3ForCausalLM, CompressForCausalLM):
                 spinquant(
                     self,
                     device,
-                    mode="optim",
+                    mode="optimize",
                     n_samples=n_samples,
                     seq_len=seq_len,
                     mse=True,
@@ -316,10 +316,7 @@ if __name__ == "__main__":
         torch_dtype=torch.bfloat16,
         device_map="cpu",
     )
-    quant_kwargs = {
-        "n_samples": 128,
-        "seq_len": 512,
-    }
+    quant_kwargs = {"n_samples": 128, "seq_len": 512, "save_path": args.exp_dir}
     model.quantize(
         tokenizer=tokenizer,
         quant_method="spinquant",

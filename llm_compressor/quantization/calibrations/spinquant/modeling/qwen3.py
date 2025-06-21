@@ -92,7 +92,7 @@ class SpinQwen2MLP(Qwen3MLP):
             transpose=True,
         )
         return down_proj
-    
+
 
 class SpinQwen3Attention(Qwen3Attention):
     """Multi-headed attention from 'Attention Is All You Need' paper"""
@@ -246,7 +246,7 @@ class SpinQwen3DecoderLayer(Qwen3DecoderLayer):
             outputs += (self_attn_weights,)
 
         return outputs
-    
+
 
 class SpinQwen3Model(Qwen3Model):
     def __init__(
@@ -267,7 +267,7 @@ class SpinQwen3Model(Qwen3Model):
             ]
         )
         self.norm = model.norm
-    
+
     def forward(
         self,
         input_ids: Optional[torch.LongTensor] = None,
