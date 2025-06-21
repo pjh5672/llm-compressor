@@ -10,6 +10,9 @@ from transformers import (
     Trainer,
     default_data_collator,
 )
+from transformers.models.llama.modeling_llama import LlamaForCausalLM
+from transformers.models.qwen2.modeling_qwen2 import Qwen2ForCausalLM
+from transformers.models.qwen3.modeling_qwen3 import Qwen3ForCausalLM
 
 PATH = Path(__file__).resolve().parents[3]
 if str(PATH) not in sys.path:
@@ -17,8 +20,10 @@ if str(PATH) not in sys.path:
 
 from utils.general import LOGGER  # noqa: E402
 from quantization.calibrations.rtn.core import rtn  # noqa: E402, F401
-from quantization.calibrations.gptq.core import gptq  # noqa: E402
+from quantization.calibrations.gptq.core import gptq  # noqa: E402, F401
 from quantization.calibrations.spinquant.modeling.llama import SpinLlamaForCausalLM  # noqa: E402
+from quantization.calibrations.spinquant.modeling.qwen2 import SpinQwen2ForCausalLM  # noqa: E402
+from quantization.calibrations.spinquant.modeling.qwen3 import SpinQwen3ForCausalLM  # noqa: E402
 from quantization.calibrations.spinquant.rotation_utils import (
     rotate_model,
     random_hadamard_matrix,
@@ -26,6 +31,7 @@ from quantization.calibrations.spinquant.rotation_utils import (
 from quantization.calibrations.spinquant.fuse_norm_utils import fuse_layer_norms  # noqa: E402
 from quantization.calibrations.spinquant.optimizer import SGDG  # noqa: E402
 from utils.dataset import CustomJsonDataset  # noqa: E402
+from utils.torch_utils import cleanup_memory  # noqa: E402
 
 
 class RotateModule(nn.Module):
@@ -43,7 +49,7 @@ class RotateModule(nn.Module):
 def spinquant(
     model,
     device,
-    mode="random",
+    mode="hadamard",
     n_samples=128,
     seq_len=2048,
     mse=False,
@@ -53,38 +59,62 @@ def spinquant(
     if verbose:
         LOGGER.info("Rotating model... [Quant-method : SpinQuant]")
 
-    if mode == "optim":
+    if mode == "optimize":
         LOGGER.info("Optimizing rotation matrix...")
         model_path = model.config._name_or_path
         quant_config = kwargs.get("quant_config")
 
-        model = SpinLlamaForCausalLM.from_pretrained(
-            model_path,
-            attn_implementation="eager",
-            torch_dtype=torch.float32,
-            device_map="cpu",
-        )
-        model._prepare_model(quant_config=quant_config)
+        if isinstance(model, LlamaForCausalLM):
+            spin_model = SpinLlamaForCausalLM.from_pretrained(
+                model_path,
+                attn_implementation="eager",
+                torch_dtype=torch.float32,
+                device_map="auto",
+            )
+        elif isinstance(model, Qwen2ForCausalLM):
+            spin_model = SpinQwen2ForCausalLM.from_pretrained(
+                model_path,
+                attn_implementation="eager",
+                torch_dtype=torch.float32,
+                device_map="auto",
+            )
+        elif isinstance(model, Qwen3ForCausalLM):
+            spin_model = SpinQwen3ForCausalLM.from_pretrained(
+                model_path,
+                attn_implementation="eager",
+                torch_dtype=torch.float32,
+                device_map="auto",
+            )
+        else:
+            raise RuntimeError(f"Not support model yet, got {model_path}")
 
-        process_word_embeddings = model.config.tie_word_embeddings
+        spin_model._prepare_model(quant_config=quant_config, mse=mse)
+
+        process_word_embeddings = spin_model.config.tie_word_embeddings
         if process_word_embeddings:
-            model.config.tie_word_embeddings = False
-            model.lm_head.weight.data = model.model.embed_tokens.weight.data.clone()
+            spin_model.config.tie_word_embeddings = False
+            spin_model.lm_head.weight.data = (
+                spin_model.model.embed_tokens.weight.data.clone()
+            )
 
-        for param in model.parameters():
+        for param in spin_model.parameters():
             param.requires_grad = False
 
-        R1 = random_hadamard_matrix(model.config.hidden_size, device)
-        model.R1 = RotateModule(R1, device)
-        for i in range(model.config.num_hidden_layers):
-            head_dim = model.config.hidden_size // model.config.num_attention_heads
-            R2 = random_hadamard_matrix(head_dim, device)
-            model.model.layers[i].self_attn.R2 = RotateModule(R2, device)
+        R1 = random_hadamard_matrix(spin_model.config.hidden_size, spin_model.device)
+        spin_model.R1 = RotateModule(R1, spin_model.device)
+        for i in range(spin_model.config.num_hidden_layers):
+            head_dim = (
+                spin_model.config.hidden_size // spin_model.config.num_attention_heads
+            )
+            R2 = random_hadamard_matrix(head_dim, spin_model.device)
+            spin_model.model.layers[i].self_attn.R2 = RotateModule(
+                R2, spin_model.device
+            )
 
-        model.seqlen = seq_len
-        trainable_parameters = [model.R1.weight] + [
-            model.model.layers[i].self_attn.R2.weight
-            for i in range(model.config.num_hidden_layers)
+        spin_model.seqlen = seq_len
+        trainable_parameters = [spin_model.R1.weight] + [
+            spin_model.model.layers[i].self_attn.R2.weight
+            for i in range(spin_model.config.num_hidden_layers)
         ]
         tokenizer = AutoTokenizer.from_pretrained(
             pretrained_model_name_or_path=model_path,
@@ -99,12 +129,13 @@ def spinquant(
             num_train_epochs=3,
             per_device_train_batch_size=4,
             per_device_eval_batch_size=4,
+            save_strategy="no",
         )
         optimizer = SGDG(
             trainable_parameters, lr=training_args.learning_rate, stiefel=True
         )
         trainer = Trainer(
-            model=model,
+            model=spin_model,
             tokenizer=tokenizer,
             args=training_args,
             train_dataset=train_data,
@@ -119,7 +150,9 @@ def spinquant(
             for key, value in cpu_state.items()
             if "R1.weight" in key or "self_attn.R2" in key
         }
-        torch.save(R_dict, kwargs.get("save_path") / "R.bin")
+        torch.save(R_dict, os.path.join(kwargs.get("save_path"), "R.bin"))
+        del spin_model
+        cleanup_memory(verbose=False)
 
     use_cache = model.config.use_cache
     model.config.use_cache = False
@@ -131,10 +164,10 @@ def spinquant(
         model.lm_head.weight.data = model.model.embed_tokens.weight.data.clone()
 
     fuse_layer_norms(model)
-    if mode == "optim":
+    if mode == "optimize":
         rotate_model(model, "hadamard", device, rotation_path=kwargs.get("save_path"))
     else:
-        rotate_model(model, "hadamard", device)
+        rotate_model(model, mode, device)
 
     # rtn(model, device, mse=mse, verbose=False)
     gptq(model, device, n_samples, seq_len, mse=mse, verbose=False)

@@ -28,7 +28,6 @@ from quantization.calibrations.rtn.core import rtn  # noqa: E402
 from quantization.calibrations.awq.core import awq  # noqa: E402
 from quantization.calibrations.gptq.core import gptq  # noqa: E402
 from quantization.calibrations.awq_plus.core import awq_plus  # noqa: E402
-from quantization.calibrations.spinquant.core import spinquant  # noqa: E402
 
 
 def eager_attention_forward(
@@ -76,9 +75,8 @@ class QuantPhiAttention(PhiAttention):
             attention.config,
             attention.layer_idx,
         )
-        self.quant_config = quant_config
-        self.qk_matmul = QMatmul(self.quant_config, axes=-1)
-        self.sv_matmul = QMatmul(self.quant_config, axes=-2)
+        self.qk_matmul = QMatmul(quant_config, axes=-1)
+        self.sv_matmul = QMatmul(quant_config, axes=-2)
         self.q_proj = attention.q_proj
         self.k_proj = attention.k_proj
         self.v_proj = attention.v_proj
@@ -224,18 +222,6 @@ class CompressPhiForCausalLM(PhiForCausalLM, CompressForCausalLM):
                     tokenizer,
                     n_samples=n_samples,
                     seq_len=seq_len,
-                    verbose=True,
-                )
-            elif quant_method == "spinquant":
-                n_samples = kwargs.get("n_samples", 128)
-                seq_len = kwargs.get("seq_len", 2048)
-                spinquant(
-                    self,
-                    device,
-                    tokenizer,
-                    n_samples=n_samples,
-                    seq_len=seq_len,
-                    mse=True,
                     verbose=True,
                 )
         else:

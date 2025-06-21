@@ -78,9 +78,8 @@ class QuantQwen3Attention(Qwen3Attention):
             attention.config,
             attention.layer_idx,
         )
-        self.quant_config = quant_config
-        self.qk_matmul = QMatmul(self.quant_config, axes=-1)
-        self.sv_matmul = QMatmul(self.quant_config, axes=-2)
+        self.qk_matmul = QMatmul(quant_config, axes=-1)
+        self.sv_matmul = QMatmul(quant_config, axes=-2)
         self.q_proj = attention.q_proj
         self.k_proj = attention.k_proj
         self.v_proj = attention.v_proj
@@ -223,14 +222,17 @@ class CompressQwen3ForCausalLM(Qwen3ForCausalLM, CompressForCausalLM):
             elif quant_method == "spinquant":
                 n_samples = kwargs.get("n_samples", 128)
                 seq_len = kwargs.get("seq_len", 2048)
+                save_path = kwargs.get("save_path", "./")
                 spinquant(
                     self,
                     device,
-                    tokenizer,
+                    mode="optimize",
                     n_samples=n_samples,
                     seq_len=seq_len,
                     mse=True,
                     verbose=True,
+                    quant_config=quant_config,
+                    save_path=save_path,
                 )
         else:
             return
@@ -314,13 +316,10 @@ if __name__ == "__main__":
         torch_dtype=torch.bfloat16,
         device_map="cpu",
     )
-    quant_kwargs = {
-        "n_samples": 128,
-        "seq_len": 512,
-    }
+    quant_kwargs = {"n_samples": 128, "seq_len": 512, "save_path": args.exp_dir}
     model.quantize(
         tokenizer=tokenizer,
-        quant_method="rtn",
+        quant_method="spinquant",
         quant_config=quant_config,
         device=device,
         quantize=True,
