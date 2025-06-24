@@ -211,7 +211,6 @@ def build_parser(root_dir):
     LOGGER.info(
         f"{file_date()} Python-{platform.python_version()} torch-{torch.__version__}"
     )
-
     init_seeds(args.seed, deterministic=True)
     device = select_device(device=args.device, batch_size=args.batch_size)
     LOGGER.add(args.exp_dir / f"{file_date()}.log", level="DEBUG")
