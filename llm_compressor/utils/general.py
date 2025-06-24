@@ -57,7 +57,7 @@ def print_args(args=None, include_keys=(), exclude_keys=(), logger=None):
 
 def file_date(path=__file__):
     # Return human-readable file modification date, i.e. '2021-3-26'
-    t = datetime.fromtimestamp(Path(path).stat().st_mtime)
+    t = datetime.now()
     return f"{t.year:04}-{t.month:02}-{t.day:02}"
 
 
