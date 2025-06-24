@@ -11,8 +11,6 @@ from transformers import (
     default_data_collator,
 )
 from transformers.models.llama.modeling_llama import LlamaForCausalLM
-from transformers.models.qwen2.modeling_qwen2 import Qwen2ForCausalLM
-from transformers.models.qwen3.modeling_qwen3 import Qwen3ForCausalLM
 
 PATH = Path(__file__).resolve().parents[3]
 if str(PATH) not in sys.path:
@@ -22,8 +20,6 @@ from utils.general import LOGGER  # noqa: E402
 from quantization.calibrations.rtn.core import rtn  # noqa: E402, F401
 from quantization.calibrations.gptq.core import gptq  # noqa: E402, F401
 from quantization.calibrations.spinquant.modeling.llama import SpinLlamaForCausalLM  # noqa: E402
-from quantization.calibrations.spinquant.modeling.qwen2 import SpinQwen2ForCausalLM  # noqa: E402
-from quantization.calibrations.spinquant.modeling.qwen3 import SpinQwen3ForCausalLM  # noqa: E402
 from quantization.calibrations.spinquant.rotation_utils import (
     rotate_model,
     random_hadamard_matrix,
@@ -68,28 +64,14 @@ def spinquant(
             spin_model = SpinLlamaForCausalLM.from_pretrained(
                 model_path,
                 attn_implementation="eager",
-                torch_dtype=torch.float32,
-                device_map="auto",
-            )
-        elif isinstance(model, Qwen2ForCausalLM):
-            spin_model = SpinQwen2ForCausalLM.from_pretrained(
-                model_path,
-                attn_implementation="eager",
-                torch_dtype=torch.float32,
-                device_map="auto",
-            )
-        elif isinstance(model, Qwen3ForCausalLM):
-            spin_model = SpinQwen3ForCausalLM.from_pretrained(
-                model_path,
-                attn_implementation="eager",
-                torch_dtype=torch.float32,
+                torch_dtype=torch.bfloat16,
                 device_map="auto",
             )
         else:
             raise RuntimeError(f"Not support model yet, got {model_path}")
 
         spin_model._prepare_model(quant_config=quant_config, mse=mse)
-
+        spin_model.config.use_cache = False
         process_word_embeddings = spin_model.config.tie_word_embeddings
         if process_word_embeddings:
             spin_model.config.tie_word_embeddings = False
@@ -126,9 +108,17 @@ def spinquant(
         )
         train_data = CustomJsonDataset(tokenizer=tokenizer, block_size=seq_len)
         training_args = TrainingArguments(
-            num_train_epochs=3,
-            per_device_train_batch_size=4,
-            per_device_eval_batch_size=4,
+            fp16=False,
+            bf16=True,
+            log_on_each_node=False,
+            per_device_train_batch_size=1,
+            logging_steps=1,
+            learning_rate=1.5,
+            weight_decay=0.0,
+            lr_scheduler_type="cosine",
+            gradient_checkpointing=True,
+            save_safetensors=False,
+            max_steps=100,
             save_strategy="no",
         )
         optimizer = SGDG(
@@ -136,7 +126,6 @@ def spinquant(
         )
         trainer = Trainer(
             model=spin_model,
-            tokenizer=tokenizer,
             args=training_args,
             train_dataset=train_data,
             eval_dataset=None,
@@ -150,7 +139,7 @@ def spinquant(
             for key, value in cpu_state.items()
             if "R1.weight" in key or "self_attn.R2" in key
         }
-        torch.save(R_dict, os.path.join(kwargs.get("save_path"), "R.bin"))
+        torch.save(R_dict, os.path.join(kwargs.get("rotation_path"), "R.bin"))
         del spin_model
         cleanup_memory(verbose=False)
 
@@ -165,7 +154,7 @@ def spinquant(
 
     fuse_layer_norms(model)
     if mode == "optimize":
-        rotate_model(model, "hadamard", device, rotation_path=kwargs.get("save_path"))
+        rotate_model(model, "hadamard", device, rotation_path=kwargs.get("rotation_path"))
     else:
         rotate_model(model, mode, device)
 
