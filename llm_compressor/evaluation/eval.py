@@ -4,8 +4,8 @@ from pathlib import Path
 import torch
 from tqdm import tqdm
 from lm_eval import models, evaluator
-from lm_eval.tasks import TaskManager, get_task_dict
 from accelerate import dispatch_model
+from lm_eval.tasks import TaskManager, get_task_dict
 from accelerate.utils import infer_auto_device_map, get_balanced_memory
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -38,7 +38,7 @@ class LMEvaluator:
         results = {}
         tasks = tasks.split(",")
         if "ppl" in tasks:
-            datasets = ["wikitext2", "ptb", "c4"]
+            datasets = ["wikitext2"]
             tokenizer_path = kwargs.get("tokenizer_path")
             seq_len = kwargs.get("seq_len", 2048)
             ppl = self.eval_ppl(

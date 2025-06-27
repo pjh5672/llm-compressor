@@ -66,6 +66,7 @@ class QLinear(nn.Linear):
                     temp = W_.reshape(-1, transposed_shape[-1] // had_dim, had_dim)
                     temp = temp.to(torch.float64) @ R2.to(torch.float64)
                     weight = temp.reshape(transposed_shape).t()
+
             self.weight.data = self.weight_quantizer(weight.data.to(dtype))
 
         return self.output_quantizer(

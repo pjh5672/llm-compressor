@@ -34,8 +34,7 @@ class DummyQuantizer(nn.Module, BaseQuantizer):
         pass
 
     def extra_repr(self):
-        s = "Disabled"
-        return s
+        return "Disabled"
 
 
 if __name__ == "__main__":

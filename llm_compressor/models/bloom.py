@@ -22,11 +22,6 @@ from utils.general import LOGGER  # noqa: E402
 from models.base import CompressForCausalLM  # noqa: E402
 from modules.qmatmul import QMatmul  # noqa: E402
 from modules.qlinear import QLinear  # noqa: E402
-from pruning.magnitude.core import magnitude  # noqa: E402
-from quantization.calibrations.rtn.core import rtn  # noqa: E402
-from quantization.calibrations.awq.core import awq  # noqa: E402
-from quantization.calibrations.gptq.core import gptq  # noqa: E402
-from quantization.calibrations.awq_plus.core import awq_plus  # noqa: E402
 
 
 class QuantBloomAttention(BloomAttention):
@@ -182,59 +177,6 @@ class CompressBloomForCausalLM(BloomForCausalLM, CompressForCausalLM):
                     )
                     setattr(self, name, qlinear)
 
-    def quantize(self, tokenizer, quant_method, quant_config, device, **kwargs):
-        if kwargs.get("quantize"):
-            self._prepare_attention_module(quant_config)
-
-            if quant_method == "rtn":
-                rtn(self, device, mse=True, verbose=True)
-
-            elif quant_method == "awq":
-                n_samples = kwargs.get("n_samples", 128)
-                seq_len = kwargs.get("seq_len", 2048)
-                awq(
-                    self,
-                    device,
-                    tokenizer,
-                    n_samples=n_samples,
-                    seq_len=seq_len,
-                    verbose=True,
-                )
-            elif quant_method == "gptq":
-                n_samples = kwargs.get("n_samples", 128)
-                seq_len = kwargs.get("seq_len", 2048)
-                gptq(
-                    self,
-                    device,
-                    n_samples=n_samples,
-                    seq_len=seq_len,
-                    mse=True,
-                    verbose=True,
-                )
-            elif quant_method == "awq_plus":
-                n_samples = kwargs.get("n_samples", 128)
-                seq_len = kwargs.get("seq_len", 2048)
-                awq_plus(
-                    self,
-                    device,
-                    tokenizer,
-                    n_samples=n_samples,
-                    seq_len=seq_len,
-                    verbose=True,
-                )
-        else:
-            return
-
-    def prune(self, tokenizer, prune_method, prune_config, device, **kwargs):
-        if kwargs.get("prune"):
-            sparsity_ratio = prune_config.pop("sparsity_ratio")
-
-            if prune_method == "magnitude":
-                magnitude(self, device, sparsity_ratio)
-                return
-        else:
-            return
-
     def save_compressed(self, local_save_path):
         LOGGER.info("Saving compressed model...")
         base_model_path = self.config._name_or_path.rstrip(os.sep)
@@ -307,6 +249,7 @@ if __name__ == "__main__":
     quant_kwargs = {
         "n_samples": 128,
         "seq_len": 512,
+        "rotation_path": args.rotation_path,
     }
     model.quantize(
         tokenizer=tokenizer,

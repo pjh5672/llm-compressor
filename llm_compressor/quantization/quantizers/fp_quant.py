@@ -154,7 +154,6 @@ class FPQuantizer(nn.Module):
         if self.mse:
             _clip_range(x)
 
-        scales.clamp_(min=1e-5)
         assert torch.isnan(scales).sum() == 0
         return scales, zeros
 

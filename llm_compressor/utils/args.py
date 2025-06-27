@@ -170,6 +170,13 @@ def build_parser(root_dir):
         """,
     )
 
+    parser.add_argument(
+        "--rotation-path",
+        type=str,
+        default=None,
+        help="Path to rotation matrix for spinquant",
+    )
+
     parser.add_argument("--prune", action="store_true", help="Enable to prune model")
 
     parser.add_argument("--prune-method", type=str, default=None, help="Prune method")

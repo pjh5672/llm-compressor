@@ -128,7 +128,9 @@ def rotate_model(model, rotate_mode, device, **kwargs):
     R1 = get_orthogonal_matrix(model_dim, rotate_mode, device)
     if rotation_path := kwargs.get("rotation_path"):
         path = os.path.join(rotation_path, "R.bin")
-        R1 = torch.load(path)["R1"].to(device).to(torch.float64)
+        if os.path.isfile(path):
+            LOGGER.debug("Found optimized rotation matrix of R1.")
+            R1 = torch.load(path)["R1"].to(device).to(torch.float64)
     rotate_embeddings(model, R1, device)
     rotate_head(model, R1, device)
     cleanup_memory(verbose=False)
@@ -140,12 +142,15 @@ def rotate_model(model, rotate_mode, device, **kwargs):
         pg_bar.set_description(s)
         LOGGER.debug(s)
 
+        R2 = get_orthogonal_matrix(head_dim, rotate_mode, device)
         if rotation_path := kwargs.get("rotation_path"):
             path = os.path.join(rotation_path, "R.bin")
+            if os.path.isfile(path):
+                LOGGER.debug(
+                    f"Found optimized rotation matrix of model.layers.{i}.self_attn.R2"
+                )
             key = f"model.layers.{i}.self_attn.R2"
             R2 = torch.load(path)[key].to(device).to(torch.float64)
-        else:
-            R2 = get_orthogonal_matrix(head_dim, rotate_mode, device)
 
         rotate_attention_inputs(layers[i], R1, device)
         rotate_attention_output(layers[i], R1, device)
