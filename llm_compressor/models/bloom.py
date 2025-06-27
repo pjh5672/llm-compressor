@@ -253,10 +253,10 @@ if __name__ == "__main__":
     }
     model.quantize(
         tokenizer=tokenizer,
-        quant_method="gptq",  # "rtn" / "awq"
+        quant_method=args.quant_method,
         quant_config=quant_config,
         device=device,
-        quantize=True,
+        quantize=args.quantize,
         **quant_kwargs,
     )
     # print(model)

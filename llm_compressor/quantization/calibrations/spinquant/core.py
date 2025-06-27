@@ -71,6 +71,8 @@ def spinquant(
             raise RuntimeError(f"Not support model yet, got {model_path}")
 
         spin_model._prepare_model(quant_config=quant_config, mse=mse)
+
+        spin_model.seqlen = seq_len
         spin_model.config.use_cache = False
         process_word_embeddings = spin_model.config.tie_word_embeddings
         if process_word_embeddings:
@@ -93,7 +95,6 @@ def spinquant(
                 R2, spin_model.device
             )
 
-        spin_model.seqlen = seq_len
         trainable_parameters = [spin_model.R1.weight] + [
             spin_model.model.layers[i].self_attn.R2.weight
             for i in range(spin_model.config.num_hidden_layers)

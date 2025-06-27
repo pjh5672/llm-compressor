@@ -10,7 +10,7 @@ else:
 
 def select_device(device="", batch_size=0, newline=False):
     # device = None or 'cpu' or 0 or '0' or '0,1,2,3'
-    s = colorstr("Device: ")
+    s = f"{colorstr('bright_blue', 'Device')}: "
     device = (
         str(device).strip().lower().replace("cuda:", "").replace("none", "")
     )  # to string, 'cuda:0' to '0'

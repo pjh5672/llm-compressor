@@ -40,7 +40,7 @@ def init_seeds(seed=0, deterministic=False):
 
 def print_args(args=None, include_keys=(), exclude_keys=(), logger=None):
     # Print function arguments (optional args dict)
-    s = colorstr("\nArguments List:\n")
+    s = colorstr("bright_red", "\n[Argument Info] \n")
     if len(include_keys):
         s += "".join(
             f"- {k} = {v}\n" for k, v in args.__dict__.items() if k in include_keys

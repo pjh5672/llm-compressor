@@ -247,7 +247,7 @@ if __name__ == "__main__":
         torch_dtype=torch.bfloat16,
         device_map="cpu",
     )
-    
+
     quant_kwargs = {
         "n_samples": 128,
         "seq_len": 512,
@@ -255,10 +255,10 @@ if __name__ == "__main__":
     }
     model.quantize(
         tokenizer=tokenizer,
-        quant_method="rtn",
+        quant_method=args.quant_method,
         quant_config=quant_config,
         device=device,
-        quantize=True,
+        quantize=args.quantize,
         **quant_kwargs,
     )
     # print(model)

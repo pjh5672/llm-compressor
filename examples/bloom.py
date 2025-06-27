@@ -35,6 +35,7 @@ model.prune(
 quant_kwargs = {
     "n_samples": args.calib_num,
     "seq_len": args.seq_len,
+    "rotation_path": args.rotation_path,
 }
 model.quantize(
     tokenizer=tokenizer,

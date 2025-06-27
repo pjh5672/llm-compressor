@@ -23,6 +23,7 @@ A lightweight, modular toolkit for compressing Large Language Models (LLMs) usin
     + RTN / GPTQ / AWQ / AWQ+ / SpinQuant algorithms
     + Per-tensor / Per-token / Per-channel / Per-block scaling options
 - ✅ **Plug-and-play integration** with Hugging Face Transformers
+- ✅ **Tinychat** with Compressed Instruct-model
 
 ---
 

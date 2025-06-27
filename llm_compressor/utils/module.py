@@ -1,3 +1,4 @@
+import torch
 from torch import nn
 from tqdm import tqdm
 
@@ -100,3 +101,28 @@ def check_sparsity(model, device):
     model.config.use_cache = use_cache
     print(f"Model sparsity : {float(count) / total_params:.4f}")
     return
+
+
+def text_to_token_ids(text, tokenizer):
+    encoded = tokenizer.encode(text)
+    encoded_tensor = torch.tensor(encoded).unsqueeze(0)
+    return encoded_tensor
+
+
+def token_ids_to_text(token_ids, tokenizer):
+    flat = token_ids.squeeze(0)
+    return tokenizer.decode(flat.tolist(), skip_special_tokens=True)
+
+
+def chat_template(message):
+    prompt = f"""Below is an instruction that describes a task. 
+Write a response that appropriately completes the request.
+
+### Instruction:
+{message}
+"""
+    return prompt
+
+
+def extract_response(response_text, input_text):
+    return response_text[len(input_text) :].replace("### Response:", "").strip()

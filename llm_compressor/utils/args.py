@@ -214,9 +214,10 @@ def build_parser(root_dir):
     args.exp_dir = root_dir / "experiments" / args.exp_name
     os.makedirs(args.exp_dir, exist_ok=True)
 
-    LOGGER.info(f" 🐯 {colorstr('bright_blue', 'bold', PROJECT_NAME)} 🐯 ")
+    LOGGER.info(f"🐯 {colorstr('bright_blue', 'bold', PROJECT_NAME)} 🐯")
+    LOGGER.info(f"{colorstr('bright_blue', 'Date')}: {file_date()}")
     LOGGER.info(
-        f"{file_date()} Python-{platform.python_version()} torch-{torch.__version__}"
+        f"{colorstr('bright_blue', 'Version')}: Python-{platform.python_version()} torch-{torch.__version__}"
     )
     init_seeds(args.seed, deterministic=True)
     device = select_device(device=args.device, batch_size=args.batch_size)
