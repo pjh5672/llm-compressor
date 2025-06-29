@@ -105,7 +105,7 @@ class CompressForCausalLM:
                     mode="hadamard",
                     n_samples=n_samples,
                     seq_len=seq_len,
-                    mse=False,
+                    mse=True,
                     verbose=True,
                     quant_config=quant_config,
                     rotation_path=rotation_path,

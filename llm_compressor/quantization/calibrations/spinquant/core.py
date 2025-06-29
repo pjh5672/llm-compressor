@@ -156,8 +156,8 @@ def spinquant(
     fuse_layer_norms(model)
     rotate_model(model, "hadamard", device, rotation_path=kwargs.get("rotation_path"))
 
-    rtn(model, device, mse=mse, verbose=False)
-    # gptq(model, device, n_samples, seq_len, mse=mse, verbose=False)
+    # rtn(model, device, mse=mse, verbose=False)
+    gptq(model, device, n_samples, seq_len, mse=mse, verbose=False)
 
     model.config.use_cache = use_cache
     if verbose:

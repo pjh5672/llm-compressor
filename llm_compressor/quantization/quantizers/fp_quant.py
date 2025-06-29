@@ -3,10 +3,18 @@ from torch import nn
 
 if __package__:
     from .formats import ElemFormat, _get_format_params
-    from .utils import _reshape_to_blocks, _undo_reshape_to_blocks
+    from .utils import (
+        _reshape_to_blocks,
+        _undo_reshape_to_blocks,
+        _quantize_elemwise_core,
+    )
 else:
     from formats import ElemFormat, _get_format_params
-    from utils import _reshape_to_blocks, _undo_reshape_to_blocks
+    from utils import (
+        _reshape_to_blocks,
+        _undo_reshape_to_blocks,
+        _quantize_elemwise_core,
+    )
 
 
 class FPQuantizer(nn.Module):
@@ -107,16 +115,16 @@ class FPQuantizer(nn.Module):
 
         def _clip_range(x, norm=2.4, grid=100, maxshrink=0.8):
             nonlocal scales, zeros
-
+            dtype = x.dtype
             if self.group_size != 0:
                 best = torch.full(
                     [x.shape[0], x.shape[1]],
                     float("inf"),
-                    dtype=x.dtype,
+                    dtype=dtype,
                     device=x.device,
                 )
             else:
-                best = torch.tensor([float("inf")], dtype=x.dtype, device=x.device)
+                best = torch.tensor([float("inf")], dtype=dtype, device=x.device)
 
             for i in range(int(maxshrink * grid)):
                 p = 1 - i / grid
@@ -135,7 +143,7 @@ class FPQuantizer(nn.Module):
                 dq.abs_()
                 dq.pow_(norm)
                 if self.group_size != 0:
-                    err = torch.sum(dq, dim=-1)
+                    err = torch.sum(dq, dim=-1, dtype=dtype)
                     tmp = err < best
                     if torch.any(tmp):
                         best[tmp] = err[tmp]
@@ -143,7 +151,7 @@ class FPQuantizer(nn.Module):
                         scales[tmp] = scales1[tmp]
                         zeros[tmp] = zeros1[tmp]
                 else:
-                    err = torch.sum(dq)
+                    err = torch.sum(dq, dtype=dtype)
                     tmp = err < best
                     if torch.any(tmp):
                         tmp.squeeze_(0)
@@ -154,6 +162,7 @@ class FPQuantizer(nn.Module):
         if self.mse:
             _clip_range(x)
 
+        scales.clamp_(min=1e-5)
         assert torch.isnan(scales).sum() == 0
         return scales, zeros
 
@@ -190,11 +199,17 @@ class FPQuantizer(nn.Module):
         return x_dq
 
     def fake_quantize(self, x, scales, zeros):
-        # Refer to https://github.com/Qualcomm-AI-research/FP8-quantization
-        x_ = ((x - zeros) / scales).clamp(min=-self.max_norm, max=self.max_norm)
-        log_scales = (x_.abs().log2() + self.emax).floor().clamp(1.0)
-        inv_scales = 2 ** (log_scales - (self.mbits - 2) - self.emax)
-        q = (x_ / inv_scales).round() * inv_scales
+        x = (x - zeros) / scales
+        q = _quantize_elemwise_core(
+            x,
+            self.mbits,
+            self.ebits,
+            self.max_norm,
+            round="nearest",
+            allow_denorm=True,
+            saturate_normals=True,
+            custom_cuda=False,
+        )
         return q * scales + zeros
 
     def extra_repr(self):
@@ -211,7 +226,7 @@ if __name__ == "__main__":
     print(x)
 
     quantizer = FPQuantizer(
-        format=ElemFormat.fp4_e2m1,
+        format=ElemFormat.fp8_e4m3,
         group_size=-1,
         axes=-1,
         zero_point=False,

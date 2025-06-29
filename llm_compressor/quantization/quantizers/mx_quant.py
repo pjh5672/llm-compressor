@@ -102,16 +102,16 @@ class MXQuantizer(nn.Module):
 
         def _clip_range(x, norm=2.4, grid=100, maxshrink=0.8):
             nonlocal scales, zeros
-
+            dtype = x.dtype
             if self.group_size != 0:
                 best = torch.full(
                     [x.shape[0], x.shape[1]],
                     float("inf"),
-                    dtype=x.dtype,
+                    dtype=dtype,
                     device=x.device,
                 )
             else:
-                best = torch.tensor([float("inf")], dtype=x.dtype, device=x.device)
+                best = torch.tensor([float("inf")], dtype=dtype, device=x.device)
 
             for i in range(int(maxshrink * grid)):
                 p = 1 - i / grid
@@ -130,7 +130,7 @@ class MXQuantizer(nn.Module):
                 dq.abs_()
                 dq.pow_(norm)
                 if self.group_size != 0:
-                    err = torch.sum(dq, dim=-1)
+                    err = torch.sum(dq, dim=-1, dtype=dtype)
                     tmp = err < best
                     if torch.any(tmp):
                         best[tmp] = err[tmp]
@@ -138,7 +138,7 @@ class MXQuantizer(nn.Module):
                         scales[tmp] = scales1[tmp]
                         zeros[tmp] = zeros1[tmp]
                 else:
-                    err = torch.sum(dq)
+                    err = torch.sum(dq, dtype=dtype)
                     tmp = err < best
                     if torch.any(tmp):
                         tmp.squeeze_(0)
@@ -149,6 +149,7 @@ class MXQuantizer(nn.Module):
         if self.mse:
             _clip_range(x)
 
+        scales.clamp_(min=1e-5)
         assert torch.isnan(scales).sum() == 0
         return scales, zeros
 
