@@ -1,15 +1,15 @@
 import torch
-from torch import nn
+import torch.nn as nn
 
 if __package__:
-    from .formats import ElemFormat, _get_format_params
+    from .formats import ElemFormat, FP32_MIN_NORMAL, _get_format_params
     from .utils import (
         _reshape_to_blocks,
         _undo_reshape_to_blocks,
         _quantize_elemwise_core,
     )
 else:
-    from formats import ElemFormat, _get_format_params
+    from formats import ElemFormat, FP32_MIN_NORMAL, _get_format_params
     from utils import (
         _reshape_to_blocks,
         _undo_reshape_to_blocks,
@@ -17,101 +17,94 @@ else:
     )
 
 
-class FPQuantizer(nn.Module):
+class NVFPQuantizer(nn.Module):
     def __init__(
         self,
         format: ElemFormat,
-        group_size=-1,
+        group_size=16,
         axes=-1,
         zero_point=False,
         **kwargs,
     ):
         """
-        PyTorch and ONNX use full-range quantization, while TensorFlow, NVIDIA,
-        TensorRT, and Intel DNNL use restrictive-range. Full-range is slightly
-        more accurate in theory, but there’s really no significant difference in practice."
-        So we use resitrctive-range of [-127, 127] instead of [-128, 127].
-        """
-
-        """ Attributes
         group_size:
-            - 0: per-tensor quant.
-            - -1: per-token quant.
-            - -2: per-channel quant.
-            - >0: per-group quant.
-            - 2d-list or 2d-tuple: 2d-block quant.
+            - 32: per-group quant.
         axes:
             - -1: row-wise quant.
             - -2: column-wise quant.
         """
         super().__init__()
-
         assert format in (
             ElemFormat.fp4_e2m1,
-            ElemFormat.fp8_e4m3,
-            ElemFormat.fp8_e5m2,
         ), f"Not support Format for {self.__class__.__name__}"
 
         ebits, mbits, emax, max_norm, min_norm = _get_format_params(format)
+        s_ebits, s_mbits, _, s_max_norm, _ = _get_format_params(ElemFormat.fp8_e4m3)
         self.register_buffer("ebits", torch.tensor(ebits))
         self.register_buffer("mbits", torch.tensor(mbits))
         self.register_buffer("emax", torch.tensor(emax))
         self.register_buffer("max_norm", torch.tensor(max_norm))
         self.register_buffer("min_norm", torch.tensor(min_norm))
+        self.register_buffer("s_ebits", torch.tensor(s_ebits))
+        self.register_buffer("s_mbits", torch.tensor(s_mbits))
+        self.register_buffer("s_max_norm", torch.tensor(s_max_norm))
         self.str_format = str(format)
         self.mse = False
         self.configure(zero_point=zero_point, group_size=group_size, axes=axes)
 
     def configure(self, zero_point, group_size, axes):
-        assert (group_size != 1) or not zero_point, (
-            "Asymmetric quant with per-element quant. are exclusive."
-        )
         self.zero_point = zero_point
         self.group_size = group_size
-
-        if self.group_size == -1:
-            self.axes = -1
-        elif self.group_size == -2:
-            self.axes = -2
-        elif isinstance(self.group_size, list) or isinstance(self.group_size, tuple):
-            self.axes = -1
-        else:
-            self.axes = axes
+        self.axes = axes
 
     def find_params(self, x, already_reshaped=False):
-        if (self.group_size != 0) & (not already_reshaped):
-            if self.group_size == -1:  # per-token quant.
-                self.group_size = x.shape[-1]
-            elif self.group_size == -2:  # per-channel quant.
-                self.group_size = x.shape[-2]
-            x, *_ = _reshape_to_blocks(
+        if not already_reshaped:
+            x, self.shared_axes, *_ = _reshape_to_blocks(
                 x,
                 block_size=self.group_size,
                 axes=self.axes,
             )
-
-        if self.group_size != 0:
-            if self.zero_point:
-                max_val = x.amax(dim=self.axes, keepdim=True)
-                min_val = x.amin(dim=self.axes, keepdim=True)
-                scales = (max_val - min_val) / (2 * self.max_norm)
-                zeros = (max_val + min_val) / 2
-            else:
-                max_val = x.abs().amax(dim=self.axes, keepdim=True)
-                min_val = -max_val
-                scales = max_val / self.max_norm
-                zeros = torch.zeros_like(scales)
         else:
-            if self.zero_point:
-                max_val = x.amax()
-                min_val = x.amin()
-                scales = (max_val - min_val) / (2 * self.max_norm)
-                zeros = (max_val + min_val) / 2
-            else:
-                max_val = x.abs().amax()
-                min_val = -max_val
-                scales = max_val / self.max_norm
-                zeros = torch.zeros_like(scales)
+            if isinstance(self.axes, int):
+                axes = [self.axes]
+            axes = [(i + len(x.shape) - 1 if i < 0 else i) for i in axes]
+            assert all(x >= 0 for x in axes)
+            self.shared_axes = sorted(axes)
+
+        def _get_scales(max_val):
+            s_max_val = max_val.abs().amax()
+            coarse_scales = s_max_val / (self.s_max_norm * self.max_norm)
+            max_val /= coarse_scales
+            fine_scales = _quantize_elemwise_core(
+                max_val,
+                self.s_mbits + self.mbits,
+                self.s_ebits + self.ebits,
+                self.s_max_norm * self.max_norm,
+                round="nearest",
+                allow_denorm=True,
+                saturate_normals=True,
+                custom_cuda=False,
+            )
+            return fine_scales * coarse_scales
+
+        if self.zero_point:
+            max_val = x.amax()
+            min_val = x.amin()
+            coarse_scales = (max_val - min_val) / (2 * self.max_norm)
+            max_val = x.amax(dim=self.axes, keepdim=True)
+            min_val = x.amin(dim=self.axes, keepdim=True)
+            zeros = (max_val + min_val) / 2
+            # fine_scales = _get_scales(max_val - zeros)
+        else:
+            max_val = x.abs().amax(dim=self.axes, keepdim=True)
+            # s_max_val = max_val.abs().amax()
+            # coarse_scales = s_max_val / self.s_max_norm
+            # max_val /= coarse_scales
+            min_val = -max_val
+            zeros = torch.zeros_like(max_val)
+            scales = _get_scales(max_val)
+        print(x / scales)
+        raise
 
         def _clip_range(x, norm=2.4, grid=100, maxshrink=0.8):
             nonlocal scales, zeros
@@ -132,11 +125,11 @@ class FPQuantizer(nn.Module):
                 min_val1 = p * min_val
 
                 if self.zero_point:
-                    scales1 = (max_val1 - min_val1) / (2 * self.max_norm)
                     zeros1 = (max_val1 + min_val1) / 2
+                    scales1 = _get_scales(max_val1 - zeros1)
                 else:
-                    scales1 = max_val1 / self.max_norm
-                    zeros1 = torch.zeros_like(scales1)
+                    zeros1 = zeros
+                    scales1 = _get_scales(max_val1)
 
                 dq = self.fake_quantize(x, scales=scales1, zeros=zeros1)
                 dq -= x
@@ -170,17 +163,11 @@ class FPQuantizer(nn.Module):
         scales = kwargs.pop("scales", None)
         zeros = kwargs.pop("zeros", None)
 
-        if self.group_size != 0:
-            if self.group_size == -1:  # per-token quant.
-                self.group_size = x.shape[-1]
-            elif self.group_size == -2:  # per-channel quant.
-                self.group_size = x.shape[-2]
-
-            x, *meta = _reshape_to_blocks(
-                x,
-                block_size=self.group_size,
-                axes=self.axes,
-            )
+        x, *meta = _reshape_to_blocks(
+            x,
+            block_size=self.group_size,
+            axes=self.axes,
+        )
 
         if (scales is not None) & (zeros is not None):
             x_dq = self.fake_quantize(x, scales=scales, zeros=zeros)
@@ -188,15 +175,13 @@ class FPQuantizer(nn.Module):
             scales, zeros = self.find_params(x, already_reshaped=True)
             x_dq = self.fake_quantize(x, scales=scales, zeros=zeros)
 
-        if self.group_size != 0:
-            return _undo_reshape_to_blocks(
-                x_dq,
-                padded_shape=meta[-2],
-                orig_shape=meta[1],
-                axes=meta[0],
-                block_size=meta[-1],
-            )
-        return x_dq
+        return _undo_reshape_to_blocks(
+            x_dq,
+            padded_shape=meta[-2],
+            orig_shape=meta[1],
+            axes=meta[0],
+            block_size=meta[-1],
+        )
 
     def fake_quantize(self, x, scales, zeros):
         x = (x - zeros) / scales
@@ -213,7 +198,7 @@ class FPQuantizer(nn.Module):
         return q * scales + zeros
 
     def extra_repr(self):
-        s = f"Format: {self.str_format.split('.')[-1].upper()}, "
+        s = f"Format: MX{self.str_format.split('.')[-1].upper()}, "
         s += f"Min: {-self.max_norm}, Max: {self.max_norm}, Axes: {self.axes}"
         return s
 
@@ -223,22 +208,22 @@ if __name__ == "__main__":
 
     device = torch.device("cuda")
     x = torch.randn(4, 6).to(device=device)
-    print(x)
+    # print(x)
 
-    quantizer = FPQuantizer(
-        format=ElemFormat.fp8_e4m3,
-        group_size=-1,
+    quantizer = NVFPQuantizer(
+        format=ElemFormat.fp4_e2m1,
+        group_size=16,
         axes=-1,
         zero_point=False,
     )
     quantizer.to(device)
-    quantizer.mse = False
+    # quantizer = MXQuantizer(
+    #     format=ElemFormat.fp8_e4m3, group_size=32, axes=-1, zero_point=False, device=device,
+    #     scale_ebits=8, scale_mbits = 1,
+    # )
     # print(quantizer)
-    # x_dq = quantizer(x)
+    x_dq = quantizer(x)
+    print(x)
+    print(x_dq)
     # print(x_dq)
-    # print(((x - x_dq) ** 2).mean())
-
-    scales, zeros = quantizer.find_params(x)
-    # print(scales, zeros, scales.shape)
-    x_dq = quantizer(x, scales=scales, zeros=zeros)
     print(((x - x_dq) ** 2).mean())
