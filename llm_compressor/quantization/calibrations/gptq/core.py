@@ -140,6 +140,14 @@ def gptq(model, device, n_samples=512, seq_len=2048, mse=False, verbose=True):
 
         inps, outs = outs, inps
 
+    model.lm_head.to(device)
+    model.lm_head.weight.data = model.lm_head.weight_quantizer(
+        model.lm_head.weight.data
+    )
+    model.lm_head.cpu()
+    del model.lm_head.weight_quantizer
+    cleanup_memory(verbose=False)
+
     model.config.use_cache = use_cache
     if verbose:
         LOGGER.info("Quantization complete !")

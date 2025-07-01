@@ -17,7 +17,7 @@ A lightweight, modular toolkit for compressing Large Language Models (LLMs) usin
 - ✅ Support **Unstructured pruning**
     + Magnitude alogithm
 - ✅ Support **Post-training quantization(PTQ)**
-    + INT / FP / MX format
+    + INT / FP / MX / NVFP4 format
     + 4-bit / 8-bit Fake quantizer support
     + Symmetric / Asymmetric quantization
     + RTN / GPTQ / AWQ / AWQ+ / SpinQuant algorithms

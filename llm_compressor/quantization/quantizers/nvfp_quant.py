@@ -2,14 +2,14 @@ import torch
 import torch.nn as nn
 
 if __package__:
-    from .formats import ElemFormat, FP32_MIN_NORMAL, _get_format_params
+    from .formats import ElemFormat, _get_format_params
     from .utils import (
         _reshape_to_blocks,
         _undo_reshape_to_blocks,
         _quantize_elemwise_core,
     )
 else:
-    from formats import ElemFormat, FP32_MIN_NORMAL, _get_format_params
+    from formats import ElemFormat, _get_format_params
     from utils import (
         _reshape_to_blocks,
         _undo_reshape_to_blocks,
@@ -34,9 +34,9 @@ class NVFPQuantizer(nn.Module):
             - -2: column-wise quant.
         """
         super().__init__()
-        assert format in (
-            ElemFormat.fp4_e2m1,
-        ), f"Not support Format for {self.__class__.__name__}"
+        assert format in (ElemFormat.fp4_e2m1,), (
+            f"Not support Format for {self.__class__.__name__}"
+        )
 
         ebits, mbits, emax, max_norm, min_norm = _get_format_params(format)
         s_ebits, s_mbits, _, s_max_norm, _ = _get_format_params(ElemFormat.fp8_e4m3)
@@ -73,51 +73,40 @@ class NVFPQuantizer(nn.Module):
 
         def _get_scales(max_val):
             s_max_val = max_val.abs().amax()
-            coarse_scales = s_max_val / (self.s_max_norm * self.max_norm)
-            max_val /= coarse_scales
-            fine_scales = _quantize_elemwise_core(
+            fp32_scales = s_max_val / (self.s_max_norm * self.max_norm)
+            max_val = max_val / (fp32_scales * self.max_norm)
+            fp8_scales = _quantize_elemwise_core(
                 max_val,
-                self.s_mbits + self.mbits,
-                self.s_ebits + self.ebits,
-                self.s_max_norm * self.max_norm,
+                self.s_mbits,
+                self.s_ebits,
+                self.s_max_norm,
                 round="nearest",
                 allow_denorm=True,
                 saturate_normals=True,
                 custom_cuda=False,
             )
-            return fine_scales * coarse_scales
+            return fp8_scales * fp32_scales
 
         if self.zero_point:
-            max_val = x.amax()
-            min_val = x.amin()
-            coarse_scales = (max_val - min_val) / (2 * self.max_norm)
             max_val = x.amax(dim=self.axes, keepdim=True)
             min_val = x.amin(dim=self.axes, keepdim=True)
             zeros = (max_val + min_val) / 2
-            # fine_scales = _get_scales(max_val - zeros)
+            scales = _get_scales(max_val - zeros)
         else:
             max_val = x.abs().amax(dim=self.axes, keepdim=True)
-            # s_max_val = max_val.abs().amax()
-            # coarse_scales = s_max_val / self.s_max_norm
-            # max_val /= coarse_scales
             min_val = -max_val
             zeros = torch.zeros_like(max_val)
             scales = _get_scales(max_val)
-        print(x / scales)
-        raise
 
         def _clip_range(x, norm=2.4, grid=100, maxshrink=0.8):
             nonlocal scales, zeros
             dtype = x.dtype
-            if self.group_size != 0:
-                best = torch.full(
-                    [x.shape[0], x.shape[1]],
-                    float("inf"),
-                    dtype=dtype,
-                    device=x.device,
-                )
-            else:
-                best = torch.tensor([float("inf")], dtype=dtype, device=x.device)
+            best = torch.full(
+                [x.shape[0], x.shape[1]],
+                float("inf"),
+                dtype=dtype,
+                device=x.device,
+            )
 
             for i in range(int(maxshrink * grid)):
                 p = 1 - i / grid
@@ -135,22 +124,13 @@ class NVFPQuantizer(nn.Module):
                 dq -= x
                 dq.abs_()
                 dq.pow_(norm)
-                if self.group_size != 0:
-                    err = torch.sum(dq, dim=-1, dtype=dtype)
-                    tmp = err < best
-                    if torch.any(tmp):
-                        best[tmp] = err[tmp]
-                        tmp.unsqueeze_(-1)
-                        scales[tmp] = scales1[tmp]
-                        zeros[tmp] = zeros1[tmp]
-                else:
-                    err = torch.sum(dq, dtype=dtype)
-                    tmp = err < best
-                    if torch.any(tmp):
-                        tmp.squeeze_(0)
-                        best[tmp] = err[tmp]
-                        scales[tmp] = scales1[tmp]
-                        zeros[tmp] = zeros1[tmp]
+                err = torch.sum(dq, dim=-1, dtype=dtype)
+                tmp = err < best
+                if torch.any(tmp):
+                    best[tmp] = err[tmp]
+                    tmp.unsqueeze_(-1)
+                    scales[tmp] = scales1[tmp]
+                    zeros[tmp] = zeros1[tmp]
 
         if self.mse:
             _clip_range(x)
@@ -216,6 +196,7 @@ if __name__ == "__main__":
         axes=-1,
         zero_point=False,
     )
+    # quantizer.mse = True
     quantizer.to(device)
     # quantizer = MXQuantizer(
     #     format=ElemFormat.fp8_e4m3, group_size=32, axes=-1, zero_point=False, device=device,
@@ -223,7 +204,7 @@ if __name__ == "__main__":
     # )
     # print(quantizer)
     x_dq = quantizer(x)
-    print(x)
-    print(x_dq)
+    # print(x)
+    # print(x_dq)
     # print(x_dq)
     print(((x - x_dq) ** 2).mean())

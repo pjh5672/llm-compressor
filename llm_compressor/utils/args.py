@@ -65,6 +65,8 @@ class QuantConfigParser:
     def define_qtype(self, fmt):
         if "mx" in fmt:
             return "mx"
+        elif "nvfp" in fmt:
+            return "nvfp"
         elif "fp" in fmt:
             return "fp"
         elif "int" in fmt:
@@ -93,7 +95,12 @@ class QuantConfigParser:
             result = m.groupdict()
             dtype = self.define_qtype(result["format"])
             config["type"] = dtype
-            config["format"] = result["format"].replace("mx", "")
+            if dtype == "mx":
+                config["format"] = result["format"].replace("mx", "")
+            elif dtype == "nvfp":
+                config["format"] = result["format"].replace("nv", "")
+            else:
+                config["format"] = result["format"]
             config["group_size"] = self.parse_group_values(result["group"])
             config["axes"] = -1 if result["wise"] == "rw" else -2
             config["zero_point"] = result["zp"] == "zp"

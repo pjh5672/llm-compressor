@@ -1,6 +1,7 @@
 import os
 import sys
 from pathlib import Path
+from copy import deepcopy
 from typing import Callable, Optional, Tuple
 
 import torch
@@ -72,7 +73,9 @@ class QuantQwen2Attention(Qwen2Attention):
             attention.config,
             attention.layer_idx,
         )
-        self.qk_matmul = QMatmul(quant_config, axes=-1)
+        kq_quant_config = deepcopy(quant_config)
+        kq_quant_config.act_out["type"] = None
+        self.qk_matmul = QMatmul(kq_quant_config, axes=-1)
         self.sv_matmul = QMatmul(quant_config, axes=-2)
         self.q_proj = attention.q_proj
         self.k_proj = attention.k_proj

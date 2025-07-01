@@ -1,17 +1,19 @@
 import torch.nn as nn
 
 if __package__:
+    from .quantizers.dummy import DummyQuantizer
     from .quantizers.formats import ElemFormat
     from .quantizers.int_quant import INTQuantizer
     from .quantizers.fp_quant import FPQuantizer
     from .quantizers.mx_quant import MXQuantizer
-    from .quantizers.dummy import DummyQuantizer
+    from .quantizers.nvfp_quant import NVFPQuantizer
 else:
+    from quantizers.dummy import DummyQuantizer
     from quantizers.formats import ElemFormat
     from quantizers.int_quant import INTQuantizer
     from quantizers.fp_quant import FPQuantizer
     from quantizers.mx_quant import MXQuantizer
-    from quantizers.dummy import DummyQuantizer
+    from .quantizers.nvfp_quant import NVFPQuantizer
 
 
 def create_fmt_ctx(fmt):
@@ -45,6 +47,8 @@ class FakeQuantizer(nn.Module):
             return FPQuantizer(**quant_config)
         elif quant_type == "mx":
             return MXQuantizer(**quant_config)
+        elif quant_type == "nvfp":
+            return NVFPQuantizer(**quant_config)
         else:
             raise RuntimeError(f"Unknown Quant type. got {quant_type}")
 
