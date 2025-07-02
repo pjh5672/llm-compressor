@@ -280,8 +280,6 @@ if __name__ == "__main__":
             "save_path": args.exp_dir,
         }
         model.profile(
-            prompt="Hello World!",
-            tokenizer=tokenizer,
             quant_config=quant_config,
             device=device,
             **profile_kwargs,

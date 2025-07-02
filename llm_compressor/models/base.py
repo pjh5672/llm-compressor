@@ -1,8 +1,11 @@
+import os
 import sys
 from pathlib import Path
 
 import torch
+from datasets import load_dataset
 from accelerate import dispatch_model
+from transformers import AutoTokenizer
 from accelerate.utils import infer_auto_device_map, get_balanced_memory
 
 PATH = Path(__file__).resolve().parents[1]
@@ -43,7 +46,7 @@ class CompressForCausalLM:
         raise NotImplementedError
 
     @torch.inference_mode()
-    def profile(self, prompt, tokenizer, quant_config, device, **kwargs):
+    def profile(self, quant_config, device, **kwargs):
         LOGGER.info("Profiling model...")
         max_limit = kwargs.get("max_limit", None)
         save_path = kwargs.get("save_path", "./")
@@ -84,8 +87,13 @@ class CompressForCausalLM:
         self.config.use_cache = use_cache
 
         LOGGER.info("Profiling activations...")
-        idx = text_to_token_ids(prompt, tokenizer)
-        self(idx.to(self.device))
+        tokenizer_path = self.config._name_or_path.rstrip(os.sep)
+        tokenizer = AutoTokenizer.from_pretrained(tokenizer_path, use_fast=False)
+        testdata = load_dataset("wikitext", "wikitext-2-raw-v1", split="test")
+        testenc = tokenizer("\n\n".join(testdata["text"]), return_tensors="pt")
+
+        batch = testenc.input_ids[:, :512]
+        self(batch.to(self.device))
         LOGGER.info("Profiling complete.")
 
     def quantize(self, tokenizer, quant_method, quant_config, device, **kwargs):

@@ -38,13 +38,11 @@ if args.profile:
         "save_path": args.exp_dir,
     }
     model.profile(
-        prompt="Hello World!",
-        tokenizer=tokenizer,
         quant_config=args.quant_config,
         device=device,
         **profile_kwargs,
     )
-    qparser.disable_profile(args.quant_config)
+    args.qparser.disable_profile(args.quant_config)
     
 ############### Model Quantization ###############
 quant_kwargs = {

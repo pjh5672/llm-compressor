@@ -259,11 +259,13 @@ def build_parser(root_dir):
 
     pparser = PruneConfigParser()
     args.prune_config = pparser.build_cfg(sparsity=args.sparsity)
-    qparser = QuantConfigParser(profile=args.profile)
-    args.quant_config = qparser.build_cfg(
+    args.qparser = QuantConfigParser(profile=args.profile)
+    args.quant_config = args.qparser.build_cfg(
         args.weight, args.act_in, args.act_out, args.head
     )
-    print_args(args=args, exclude_keys=("exp_dir", "quant_config"), logger=LOGGER)
+    print_args(
+        args=args, exclude_keys=("qparser", "exp_dir", "quant_config"), logger=LOGGER
+    )
     return args, device
 
 
