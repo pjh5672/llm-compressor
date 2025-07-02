@@ -28,6 +28,10 @@ class QLinear(nn.Linear):
             linear.weight.device,
             dtype,
         )
+        op_name = kwargs.get("op_name", None)
+        max_limit = kwargs.get("max_val", None)
+        save_path = kwargs.get("save_path", "./")
+
         self.train(linear.training)
 
         with torch.no_grad():
@@ -35,10 +39,24 @@ class QLinear(nn.Linear):
             if self.bias is not None:
                 self.bias.copy_(linear.bias)
 
-        self.quant_config = quant_config
-        self.input_quantizer = FakeQuantizer.build(**self.quant_config.act_in)
-        self.weight_quantizer = FakeQuantizer.build(**self.quant_config.weight)
-        self.output_quantizer = FakeQuantizer.build(**self.quant_config.act_out)
+        self.input_quantizer = FakeQuantizer.build(
+            quant_config.act_in,
+            op_name=f"{op_name}.input",
+            max_limit=max_limit,
+            save_path=save_path,
+        )
+        self.weight_quantizer = FakeQuantizer.build(
+            quant_config.weight,
+            op_name=f"{op_name}.weight",
+            max_limit=max_limit,
+            save_path=save_path,
+        )
+        self.output_quantizer = FakeQuantizer.build(
+            quant_config.act_out,
+            op_name=f"{op_name}.output",
+            max_limit=max_limit,
+            save_path=save_path,
+        )
 
     def forward(self, inputs: Tensor, **kwargs) -> Tensor:
         """Forward with quantized weight if available."""
@@ -92,7 +110,7 @@ if __name__ == "__main__":
         "group_size": -1,
         "axes": -1,
         "zero_point": False,
-        "device": device,
+        "is_profile": True,
     }
     quant_config.act_in = {
         "type": "int",
@@ -100,7 +118,7 @@ if __name__ == "__main__":
         "group_size": -1,
         "axes": -1,
         "zero_point": False,
-        "device": device,
+        "is_profile": True,
     }
     quant_config.act_out = {
         "type": "int",
@@ -108,12 +126,12 @@ if __name__ == "__main__":
         "group_size": -1,
         "axes": -1,
         "zero_point": False,
-        "device": device,
+        "is_profile": True,
     }
-    linear = nn.Linear(6, 4, bias=False).to(device)
+    linear = nn.Linear(6, 4, bias=False)
     qlinear = QLinear(
         linear=linear, quant_config=quant_config, dtype=linear.weight.dtype
-    )
+    ).to(device)
     print(qlinear)
     x = torch.randn(4, 6).to(device)
     qlinear.weight.data = qlinear.weight_quantizer(qlinear.weight.data)

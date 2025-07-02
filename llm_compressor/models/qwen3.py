@@ -67,13 +67,30 @@ class QuantQwen3Attention(Qwen3Attention):
         self,
         attention: Qwen3Attention,
         quant_config,
+        **kwargs,
     ):
         super().__init__(
             attention.config,
             attention.layer_idx,
         )
-        self.qk_matmul = QMatmul(quant_config, axes=-1)
-        self.sv_matmul = QMatmul(quant_config, axes=-2)
+        op_name = kwargs.get("op_name", None)
+        max_limit = kwargs.get("max_val", None)
+        save_path = kwargs.get("save_path", "./")
+
+        self.qk_matmul = QMatmul(
+            quant_config,
+            axes=-1,
+            op_name=f"{op_name}.qk_matmul",
+            max_limit=max_limit,
+            save_path=save_path,
+        )
+        self.sv_matmul = QMatmul(
+            quant_config,
+            axes=-2,
+            op_name=f"{op_name}.sv_matmul",
+            max_limit=max_limit,
+            save_path=save_path,
+        )
         self.q_proj = attention.q_proj
         self.k_proj = attention.k_proj
         self.v_proj = attention.v_proj
@@ -142,7 +159,7 @@ class CompressQwen3ForCausalLM(Qwen3ForCausalLM, CompressForCausalLM):
     ):
         super().__init__(config)
 
-    def _prepare_attention_module(self, quant_config):
+    def _prepare_attention_module(self, quant_config, max_limit=None, save_path="./"):
         for name, module in self.named_modules():
             if isinstance(module, Qwen3Attention):
                 parent, child_name = name.rsplit(".", 1)
@@ -150,11 +167,16 @@ class CompressQwen3ForCausalLM(Qwen3ForCausalLM, CompressForCausalLM):
                 qattn = QuantQwen3Attention(
                     attention=getattr(parent_module, child_name),
                     quant_config=quant_config.matmul,
+                    op_name=name.replace("model.", ""),
+                    max_limit=max_limit,
+                    save_path=save_path,
                 )
                 setattr(parent_module, child_name, qattn)
 
         for name, module in self.named_modules():
             if isinstance(module, nn.Linear):
+                op_name = name.replace("model.", "")
+
                 if "lm_head" not in name:
                     parent, child_name = name.rsplit(".", 1)
                     parent_module = dict(self.named_modules())[parent]
@@ -162,14 +184,21 @@ class CompressQwen3ForCausalLM(Qwen3ForCausalLM, CompressForCausalLM):
                         linear=getattr(parent_module, child_name),
                         quant_config=quant_config.linear,
                         dtype=self.dtype,
+                        op_name=op_name,
+                        max_limit=max_limit,
+                        save_path=save_path,
                     )
                     setattr(parent_module, child_name, qlinear)
+
                 if "lm_head" in name:
                     head_module = dict(self.named_modules())[name]
                     qlinear = QLinear(
                         linear=head_module,
                         quant_config=quant_config.head,
                         dtype=self.dtype,
+                        op_name=op_name,
+                        max_limit=max_limit,
+                        save_path=save_path,
                     )
                     setattr(self, name, qlinear)
 
@@ -231,7 +260,7 @@ if __name__ == "__main__":
     ROOT = Path(__file__).resolve().parents[1]
     args, device = build_parser(ROOT)
 
-    qparser = QuantConfigParser()
+    qparser = QuantConfigParser(profile=args.profile)
     quant_config = qparser.build_cfg(args.weight, args.act_in, args.act_out, args.head)
 
     model_path = "d:\\models\\qwen3-1.7b"
@@ -242,6 +271,21 @@ if __name__ == "__main__":
         torch_dtype=torch.bfloat16,
         device_map="cpu",
     )
+
+    if args.profile:
+        profile_kwargs = {
+            "max_limit": None,
+            "save_path": args.exp_dir,
+        }
+        model.profile(
+            prompt="Hello World!",
+            tokenizer=tokenizer,
+            quant_config=quant_config,
+            device=device,
+            **profile_kwargs,
+        )
+        # print(model)
+        qparser.disable_profile(quant_config)
 
     quant_kwargs = {
         "n_samples": 128,

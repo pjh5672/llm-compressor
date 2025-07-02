@@ -9,6 +9,8 @@ PATH = Path(__file__).resolve().parents[1]
 if str(PATH) not in sys.path:
     sys.path.append(str(PATH))
 
+from utils.general import LOGGER  # noqa: E402
+from utils.module import find_layers  # noqa: E402
 from utils.torch_utils import cleanup_memory  # noqa: E402
 from pruning.magnitude.core import magnitude  # noqa: E402
 from quantization.calibrations.rtn.core import rtn  # noqa: E402
@@ -40,9 +42,55 @@ class CompressForCausalLM:
     def move_embed(self):
         raise NotImplementedError
 
+    @torch.inference_mode()
+    def profile(self, prompt, tokenizer, quant_config, device, **kwargs):
+        LOGGER.info("Profiling model...")
+        max_limit = kwargs.get("max_limit", None)
+        save_path = kwargs.get("save_path", "./")
+
+        self._prepare_attention_module(
+            quant_config=quant_config,
+            max_limit=max_limit,
+            save_path=save_path,
+        )
+
+        use_cache = self.config.use_cache
+        self.config.use_cache = False
+        self.eval()
+
+        LOGGER.info("Profiling weights...")
+        layers = self.get_layers()
+        for i in range(len(layers)):
+            layer = layers[i].to(device)
+            subset = find_layers(layer)
+
+            for name in subset:
+                subset[name].weight.data = subset[name].weight_quantizer(
+                    subset[name].weight.data
+                )
+                del subset[name].weight_quantizer
+
+            layers[i] = layer.cpu()
+            del layer
+
+        self.lm_head.to(device)
+        self.lm_head.weight.data = self.lm_head.weight_quantizer(
+            self.lm_head.weight.data
+        )
+        self.lm_head.cpu()
+        del self.lm_head.weight_quantizer
+
+        cleanup_memory(verbose=False)
+        self.config.use_cache = use_cache
+
+        LOGGER.info("Profiling activations...")
+        idx = text_to_token_ids(prompt, tokenizer)
+        self(idx.to(self.device))
+        LOGGER.info("Profiling complete.")
+
     def quantize(self, tokenizer, quant_method, quant_config, device, **kwargs):
         if kwargs.get("quantize"):
-            self._prepare_attention_module(quant_config)
+            self._prepare_attention_module(quant_config=quant_config)
 
             if quant_method == "rtn":
                 rtn(self, device, mse=True, verbose=True)
@@ -125,6 +173,7 @@ class CompressForCausalLM:
 
     @torch.inference_mode()
     def generate_text(self, prompt, tokenizer, **kwargs):
+        LOGGER.info("Generating response...")
         seq_len = kwargs.get("seq_len", 512)
         max_new_tokens = kwargs.get("max_new_tokens", 100)
         temperature = kwargs.get("temperature", 0.0)

@@ -18,6 +18,7 @@ class QMatmul(nn.Module):
         self,
         quant_config,
         axes=-1,
+        **kwargs,
     ):
         """Attributes
         axes:
@@ -26,19 +27,37 @@ class QMatmul(nn.Module):
         """
         super().__init__()
 
+        op_name = kwargs.get("op_name", None)
+        max_limit = kwargs.get("max_val", None)
+        save_path = kwargs.get("save_path", "./")
+
         # Act. Matmul takes place on Q@K.T & S@V in Attention, for KVQuant
-        self.quant_config = quant_config
-        self.input1_quantizer = FakeQuantizer.build(**self.quant_config.act_in)
-        self.quant_config.act_in2 = deepcopy(self.quant_config.act_in)
-        self.quant_config.act_in2["axes"] = axes
+        quant_config.act_in2 = deepcopy(quant_config.act_in)
+        self.input1_quantizer = FakeQuantizer.build(
+            quant_config.act_in,
+            op_name=f"{op_name}.input1",
+            max_limit=max_limit,
+            save_path=save_path,
+        )
+        quant_config.act_in2["axes"] = axes
         # row-wise setup
-        if (axes == -1) and (self.quant_config.act_in["group_size"] == -2):
-            self.quant_config.act_in2["group_size"] = -1
+        if (axes == -1) and (quant_config.act_in["group_size"] == -2):
+            quant_config.act_in2["group_size"] = -1
         # column-wise setup
-        if (axes == -2) and (self.quant_config.act_in["group_size"] == -1):
-            self.quant_config.act_in2["group_size"] = -2
-        self.input2_quantizer = FakeQuantizer.build(**self.quant_config.act_in2)
-        self.output_quantizer = FakeQuantizer.build(**self.quant_config.act_out)
+        if (axes == -2) and (quant_config.act_in["group_size"] == -1):
+            quant_config.act_in2["group_size"] = -2
+        self.input2_quantizer = FakeQuantizer.build(
+            quant_config.act_in2,
+            op_name=f"{op_name}.input2",
+            max_limit=max_limit,
+            save_path=save_path,
+        )
+        self.output_quantizer = FakeQuantizer.build(
+            quant_config.act_out,
+            op_name=f"{op_name}.output",
+            max_limit=max_limit,
+            save_path=save_path,
+        )
 
     def forward(self, inputs1: Tensor, inputs2: Tensor) -> Tensor:
         """Matrix multiplication with quantized activations if available."""
@@ -62,7 +81,7 @@ if __name__ == "__main__":
         "group_size": -1,
         "axes": -1,
         "zero_point": False,
-        "device": device,
+        "is_profile": True,
     }
     quant_config.act_out = {
         "type": "int",
@@ -70,10 +89,10 @@ if __name__ == "__main__":
         "group_size": -1,
         "axes": -1,
         "zero_point": False,
-        "device": device,
+        "is_profile": True,
     }
 
-    qmatmul = QMatmul(quant_config=quant_config, axes=-2)
+    qmatmul = QMatmul(quant_config=quant_config, axes=-2).to(device)
     print(qmatmul)
     x1 = torch.randn(4, 6).to(device)
     x2 = torch.randn(6, 4).to(device)

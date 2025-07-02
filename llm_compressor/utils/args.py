@@ -33,7 +33,8 @@ class PruneConfigParser:
 
 
 class QuantConfigParser:
-    def __init__(self):
+    def __init__(self, profile=False):
+        self.profile = profile
         self.quant_config = EasyDict({})
         self.linear = {}
         self.matmul = {}
@@ -76,12 +77,14 @@ class QuantConfigParser:
 
     def parse_config(self, s):
         config = {}
+
         if s is None:
             config["type"] = None
             config["format"] = None
             config["group_size"] = None
             config["axes"] = None
             config["zero_point"] = None
+            config["is_profile"] = self.profile
             return config
 
         pattern = (
@@ -97,6 +100,7 @@ class QuantConfigParser:
             config["type"] = dtype
             if dtype == "mx":
                 config["format"] = result["format"].replace("mx", "")
+                config["scale_ebits"] = 8
             elif dtype == "nvfp":
                 config["format"] = result["format"].replace("nv", "")
             else:
@@ -104,8 +108,7 @@ class QuantConfigParser:
             config["group_size"] = self.parse_group_values(result["group"])
             config["axes"] = -1 if result["wise"] == "rw" else -2
             config["zero_point"] = result["zp"] == "zp"
-            if dtype == "mx":
-                config["scale_ebits"] = 8
+            config["is_profile"] = self.profile
             return config
 
         raise RuntimeError(f"Cannot update Qconfig. No matched pattern, got {s}.")
@@ -121,6 +124,26 @@ class QuantConfigParser:
 
         raise RuntimeError(f"Invalid group size, got {nums_str}.")
 
+    def disable_profile(self, quant_config):
+        quant_config.linear["weight"]["is_profile"] = False
+        quant_config.linear["act_in"]["is_profile"] = False
+        quant_config.linear["act_out"]["is_profile"] = False
+        quant_config.matmul["act_out"]["is_profile"] = False
+        quant_config.matmul["act_in"]["is_profile"] = False
+        quant_config.head["weight"]["is_profile"] = False
+        quant_config.head["act_in"]["is_profile"] = False
+        quant_config.head["act_out"]["is_profile"] = False
+
+    def enable_profile(self, quant_config):
+        quant_config.linear["weight"]["is_profile"] = True
+        quant_config.linear["act_in"]["is_profile"] = True
+        quant_config.linear["act_out"]["is_profile"] = True
+        quant_config.matmul["act_out"]["is_profile"] = True
+        quant_config.matmul["act_in"]["is_profile"] = True
+        quant_config.head["weight"]["is_profile"] = True
+        quant_config.head["act_in"]["is_profile"] = True
+        quant_config.head["act_out"]["is_profile"] = True
+
 
 def build_parser(root_dir):
     parser = argparse.ArgumentParser()
@@ -128,6 +151,10 @@ def build_parser(root_dir):
     parser.add_argument("--model", type=str, required=True, help="Path to HF model")
 
     parser.add_argument("--exp-name", type=str, default="test", help="Name to project")
+
+    parser.add_argument(
+        "--profile", action="store_true", help="Enable to profile model"
+    )
 
     parser.add_argument(
         "--quantize", action="store_true", help="Enable to quantize model"
@@ -232,7 +259,7 @@ def build_parser(root_dir):
 
     pparser = PruneConfigParser()
     args.prune_config = pparser.build_cfg(sparsity=args.sparsity)
-    qparser = QuantConfigParser()
+    qparser = QuantConfigParser(profile=args.profile)
     args.quant_config = qparser.build_cfg(
         args.weight, args.act_in, args.act_out, args.head
     )
