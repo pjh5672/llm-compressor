@@ -35,10 +35,10 @@ def rtn(model, device, mse=False, verbose=True):
         subset = find_layers(layer)
 
         for name in subset:
-            W = subset[name].weight.data
-            if mse:
-                subset[name].weight_quantizer.mse = True
-            subset[name].weight.data = subset[name].weight_quantizer(W)
+            subset[name].weight_quantizer.mse = mse
+            subset[name].weight.data = subset[name].weight_quantizer(
+                subset[name].weight.data
+            )
             del subset[name].weight_quantizer
 
         layers[i] = layer.cpu()
@@ -46,11 +46,12 @@ def rtn(model, device, mse=False, verbose=True):
         cleanup_memory(verbose=False)
 
     model.lm_head.to(device)
+    model.lm_head.weight_quantizer.mse = mse
     model.lm_head.weight.data = model.lm_head.weight_quantizer(
         model.lm_head.weight.data
     )
-    model.lm_head.cpu()
     del model.lm_head.weight_quantizer
+    model.lm_head.cpu()
     cleanup_memory(verbose=False)
 
     model.config.use_cache = use_cache

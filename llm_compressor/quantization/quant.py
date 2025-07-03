@@ -38,14 +38,12 @@ class FakeQuantizer(nn.Module):
         quant_type = quant_config_.get("type")
         is_profile = quant_config_.get("is_profile")
         op_name = kwargs.get("op_name", None)
-        max_limit = kwargs.get("max_val", None)
         save_path = kwargs.get("save_path", "./")
 
         if quant_type is None:
             return DummyQuantizer(
                 is_profile=is_profile,
                 op_name=op_name,
-                max_limit=max_limit,
                 save_path=save_path,
             )
 
@@ -61,7 +59,7 @@ class FakeQuantizer(nn.Module):
             raise RuntimeError(f"Unknown Quant type. got {quant_type}")
 
         quant_config_["format"] = create_fmt_ctx(quant_config_["format"])
-        quant_config_.update(op_name=op_name, max_limit=max_limit, save_path=save_path)
+        quant_config_.update(op_name=op_name, save_path=save_path)
         return quantizer(**quant_config_)
 
 

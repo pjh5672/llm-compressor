@@ -23,9 +23,9 @@ if str(PATH) not in sys.path:
     sys.path.append(str(PATH))
 
 from utils.general import LOGGER  # noqa: E402
-from models.base import CompressForCausalLM  # noqa: E402
 from modules.qmatmul import QMatmul  # noqa: E402
 from modules.qlinear import QLinear  # noqa: E402
+from models.base import CompressForCausalLM  # noqa: E402
 
 
 def eager_attention_forward(
@@ -75,7 +75,6 @@ class QuantQwen2Attention(Qwen2Attention):
             attention.layer_idx,
         )
         op_name = kwargs.get("op_name", None)
-        max_limit = kwargs.get("max_val", None)
         save_path = kwargs.get("save_path", "./")
 
         qk_quant_config = deepcopy(quant_config)
@@ -84,14 +83,12 @@ class QuantQwen2Attention(Qwen2Attention):
             qk_quant_config,
             axes=-1,
             op_name=f"{op_name}.qk_matmul",
-            max_limit=max_limit,
             save_path=save_path,
         )
         self.sv_matmul = QMatmul(
             quant_config,
             axes=-2,
             op_name=f"{op_name}.sv_matmul",
-            max_limit=max_limit,
             save_path=save_path,
         )
         self.q_proj = attention.q_proj
@@ -167,7 +164,7 @@ class CompressQwen2ForCausalLM(Qwen2ForCausalLM, CompressForCausalLM):
     ):
         super().__init__(config)
 
-    def _prepare_attention_module(self, quant_config, max_limit=None, save_path="./"):
+    def _prepare_attention_module(self, quant_config, save_path="./"):
         for name, module in self.named_modules():
             if isinstance(module, Qwen2Attention):
                 parent, child_name = name.rsplit(".", 1)
@@ -176,7 +173,6 @@ class CompressQwen2ForCausalLM(Qwen2ForCausalLM, CompressForCausalLM):
                     attention=getattr(parent_module, child_name),
                     quant_config=quant_config.matmul,
                     op_name=name.replace("model.", ""),
-                    max_limit=max_limit,
                     save_path=save_path,
                 )
                 setattr(parent_module, child_name, qattn)
@@ -193,7 +189,6 @@ class CompressQwen2ForCausalLM(Qwen2ForCausalLM, CompressForCausalLM):
                         quant_config=quant_config.linear,
                         dtype=self.dtype,
                         op_name=op_name,
-                        max_limit=max_limit,
                         save_path=save_path,
                     )
                     setattr(parent_module, child_name, qlinear)
@@ -205,7 +200,6 @@ class CompressQwen2ForCausalLM(Qwen2ForCausalLM, CompressForCausalLM):
                         quant_config=quant_config.head,
                         dtype=self.dtype,
                         op_name=op_name,
-                        max_limit=max_limit,
                         save_path=save_path,
                     )
                     setattr(self, name, qlinear)
@@ -281,17 +275,11 @@ if __name__ == "__main__":
     )
 
     if args.profile:
-        profile_kwargs = {
-            "max_limit": None,
-            "save_path": args.exp_dir,
-        }
         model.profile(
             quant_config=quant_config,
             device=device,
-            **profile_kwargs,
+            save_path=args.exp_dir,
         )
-        # print(model)
-        qparser.disable_profile(quant_config)
 
     quant_kwargs = {
         "n_samples": 128,

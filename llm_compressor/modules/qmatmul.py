@@ -28,7 +28,6 @@ class QMatmul(nn.Module):
         super().__init__()
 
         op_name = kwargs.get("op_name", None)
-        max_limit = kwargs.get("max_val", None)
         save_path = kwargs.get("save_path", "./")
 
         # Act. Matmul takes place on Q@K.T & S@V in Attention, for KVQuant
@@ -36,7 +35,6 @@ class QMatmul(nn.Module):
         self.input1_quantizer = FakeQuantizer.build(
             quant_config.act_in,
             op_name=f"{op_name}.input1",
-            max_limit=max_limit,
             save_path=save_path,
         )
         quant_config.act_in2["axes"] = axes
@@ -49,13 +47,11 @@ class QMatmul(nn.Module):
         self.input2_quantizer = FakeQuantizer.build(
             quant_config.act_in2,
             op_name=f"{op_name}.input2",
-            max_limit=max_limit,
             save_path=save_path,
         )
         self.output_quantizer = FakeQuantizer.build(
             quant_config.act_out,
             op_name=f"{op_name}.output",
-            max_limit=max_limit,
             save_path=save_path,
         )
 

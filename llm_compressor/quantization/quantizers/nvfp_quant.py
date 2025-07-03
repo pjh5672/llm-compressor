@@ -1,7 +1,7 @@
 import torch
-import torch.nn as nn
 
 if __package__:
+    from .base import BaseQuantizer
     from .formats import ElemFormat, _get_format_params
     from .utils import (
         _reshape_to_blocks,
@@ -9,6 +9,7 @@ if __package__:
         _quantize_elemwise_core,
     )
 else:
+    from base import BaseQuantizer
     from formats import ElemFormat, _get_format_params
     from utils import (
         _reshape_to_blocks,
@@ -17,7 +18,7 @@ else:
     )
 
 
-class NVFPQuantizer(nn.Module):
+class NVFPQuantizer(BaseQuantizer):
     def __init__(
         self,
         format: ElemFormat,
@@ -36,15 +37,12 @@ class NVFPQuantizer(nn.Module):
         """
         self.is_profile = is_profile
         op_name = kwargs.get("op_name", None)
-        max_limit = kwargs.get("max_limit", None)
         save_path = kwargs.get("save_path", "./")
         self.op_name = op_name if op_name is not None else "None"
-        self.max_limit = max_limit
         self.save_path = save_path
 
         super().__init__(
             op_name=self.op_name,
-            max_limit=self.max_limit,
             save_path=self.save_path,
         )
 
@@ -170,7 +168,7 @@ class NVFPQuantizer(nn.Module):
             x_dq = self.fake_quantize(x, scales=scales, zeros=zeros)
 
         if self.is_profile:
-            self.record_maxval(x=x, qdq_x=x_dq)
+            self.record_stats(x=x, qdq_x=x_dq)
 
         return _undo_reshape_to_blocks(
             x_dq,
@@ -198,8 +196,7 @@ class NVFPQuantizer(nn.Module):
         s = f"Format: MX{self.str_format.split('.')[-1].upper()}, "
         s += f"Min: {-self.max_norm}, Max: {self.max_norm}, Axes: {self.axes}"
         if self.is_profile:
-            s += f", Op name: {self.op_name}, "
-            s += f"Dynamic range limit: {self.max_limit}"
+            s += f", Op name: {self.op_name}"
         return s
 
 

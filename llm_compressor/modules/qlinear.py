@@ -29,7 +29,6 @@ class QLinear(nn.Linear):
             dtype,
         )
         op_name = kwargs.get("op_name", None)
-        max_limit = kwargs.get("max_val", None)
         save_path = kwargs.get("save_path", "./")
 
         self.train(linear.training)
@@ -42,19 +41,16 @@ class QLinear(nn.Linear):
         self.input_quantizer = FakeQuantizer.build(
             quant_config.act_in,
             op_name=f"{op_name}.input",
-            max_limit=max_limit,
             save_path=save_path,
         )
         self.weight_quantizer = FakeQuantizer.build(
             quant_config.weight,
             op_name=f"{op_name}.weight",
-            max_limit=max_limit,
             save_path=save_path,
         )
         self.output_quantizer = FakeQuantizer.build(
             quant_config.act_out,
             op_name=f"{op_name}.output",
-            max_limit=max_limit,
             save_path=save_path,
         )
 

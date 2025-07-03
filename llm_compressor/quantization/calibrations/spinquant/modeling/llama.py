@@ -406,6 +406,7 @@ class SpinLlamaForCausalLM(LlamaForCausalLM):
     def _prepare_model(self, quant_config, mse):
         self.model = SpinLlamaModel(self.model, quant_config, self.dtype, mse)
         self.lm_head = QLinear(self.lm_head, quant_config.head, self.dtype)
+        self.lm_head.weight_quantizer.mse = mse
         self.lm_head.weight.data = self.lm_head.weight_quantizer(
             self.lm_head.weight.data
         )

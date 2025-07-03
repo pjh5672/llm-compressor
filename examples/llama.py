@@ -33,16 +33,11 @@ model.prune(
 
 ############### Model Profiling ###############
 if args.profile:
-    profile_kwargs = {
-        "max_limit": None,
-        "save_path": args.exp_dir,
-    }
     model.profile(
         quant_config=args.quant_config,
         device=device,
-        **profile_kwargs,
+        save_path=args.exp_dir,
     )
-    args.qparser.disable_profile(args.quant_config)
     
 ############### Model Quantization ###############
 quant_kwargs = {

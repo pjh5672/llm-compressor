@@ -17,15 +17,12 @@ class DummyQuantizer(BaseQuantizer):
         """
         self.is_profile = is_profile
         op_name = kwargs.get("op_name", None)
-        max_limit = kwargs.get("max_limit", None)
         save_path = kwargs.get("save_path", "./")
         self.op_name = op_name if op_name is not None else "None"
-        self.max_limit = max_limit
         self.save_path = save_path
 
         super().__init__(
             op_name=self.op_name,
-            max_limit=self.max_limit,
             save_path=self.save_path,
         )
 
@@ -37,7 +34,7 @@ class DummyQuantizer(BaseQuantizer):
 
     def forward(self, x, **kwargs):
         if self.is_profile:
-            self.record_maxval(x=x, qdq_x=x)
+            self.record_stats(x=x, qdq_x=x)
         return x
 
     def fake_quantize(self):
@@ -46,8 +43,7 @@ class DummyQuantizer(BaseQuantizer):
     def extra_repr(self):
         s = "Format: BF16"
         if self.is_profile:
-            s += f", Op name: {self.op_name}, "
-            s += f"Dynamic range limit: {self.max_limit}"
+            s += f", Op name: {self.op_name}"
         return s
 
 

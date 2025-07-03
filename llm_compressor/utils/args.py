@@ -124,33 +124,13 @@ class QuantConfigParser:
 
         raise RuntimeError(f"Invalid group size, got {nums_str}.")
 
-    def disable_profile(self, quant_config):
-        quant_config.linear["weight"]["is_profile"] = False
-        quant_config.linear["act_in"]["is_profile"] = False
-        quant_config.linear["act_out"]["is_profile"] = False
-        quant_config.matmul["act_out"]["is_profile"] = False
-        quant_config.matmul["act_in"]["is_profile"] = False
-        quant_config.head["weight"]["is_profile"] = False
-        quant_config.head["act_in"]["is_profile"] = False
-        quant_config.head["act_out"]["is_profile"] = False
-
-    def enable_profile(self, quant_config):
-        quant_config.linear["weight"]["is_profile"] = True
-        quant_config.linear["act_in"]["is_profile"] = True
-        quant_config.linear["act_out"]["is_profile"] = True
-        quant_config.matmul["act_out"]["is_profile"] = True
-        quant_config.matmul["act_in"]["is_profile"] = True
-        quant_config.head["weight"]["is_profile"] = True
-        quant_config.head["act_in"]["is_profile"] = True
-        quant_config.head["act_out"]["is_profile"] = True
-
 
 def build_parser(root_dir):
     parser = argparse.ArgumentParser()
 
     parser.add_argument("--model", type=str, required=True, help="Path to HF model")
 
-    parser.add_argument("--exp-name", type=str, default="test", help="Name to project")
+    parser.add_argument("--exp", type=str, default="test", help="Name to project")
 
     parser.add_argument(
         "--profile", action="store_true", help="Enable to profile model"
@@ -245,7 +225,7 @@ def build_parser(root_dir):
     parser.add_argument("--seed", type=int, default=0, help="Inference seed")
 
     args = parser.parse_args()
-    args.exp_dir = root_dir / "experiments" / args.exp_name
+    args.exp_dir = root_dir / "experiments" / args.exp
     os.makedirs(args.exp_dir, exist_ok=True)
 
     LOGGER.info(f"🐯 {colorstr('bright_blue', 'bold', PROJECT_NAME)} 🐯")

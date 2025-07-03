@@ -46,14 +46,11 @@ class CompressForCausalLM:
         raise NotImplementedError
 
     @torch.inference_mode()
-    def profile(self, quant_config, device, **kwargs):
+    def profile(self, quant_config, device, save_path="./", **kwargs):
         LOGGER.info("Profiling model...")
-        max_limit = kwargs.get("max_limit", None)
-        save_path = kwargs.get("save_path", "./")
 
         self._prepare_attention_module(
             quant_config=quant_config,
-            max_limit=max_limit,
             save_path=save_path,
         )
 
@@ -94,7 +91,8 @@ class CompressForCausalLM:
 
         batch = testenc.input_ids[:, :512]
         self(batch.to(self.device))
-        LOGGER.info("Profiling complete.")
+        LOGGER.info("Profiling complete. (The process will be exit.)")
+        sys.exit(0)
 
     def quantize(self, tokenizer, quant_method, quant_config, device, **kwargs):
         if kwargs.get("quantize"):

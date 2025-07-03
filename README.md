@@ -127,16 +127,11 @@ model.prune(
 #### 4. Profile the Model
 
 ```python
-profile_kwargs = {
-    "max_limit": None,
-    "save_path": args.exp_dir,
-}
 model.profile(
     quant_config=args.quant_config,
     device=device,
-    **profile_kwargs,
+    save_path=args.exp_dir,
 )
-args.qparser.disable_profile(args.quant_config)
 ```
 
 #### 5. Quantize the Model

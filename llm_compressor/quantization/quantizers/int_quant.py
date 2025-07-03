@@ -40,15 +40,12 @@ class INTQuantizer(BaseQuantizer):
         """
         self.is_profile = is_profile
         op_name = kwargs.get("op_name", None)
-        max_limit = kwargs.get("max_limit", None)
         save_path = kwargs.get("save_path", "./")
         self.op_name = op_name if op_name is not None else "None"
-        self.max_limit = max_limit
         self.save_path = save_path
 
         super().__init__(
             op_name=self.op_name,
-            max_limit=self.max_limit,
             save_path=self.save_path,
         )
 
@@ -191,7 +188,7 @@ class INTQuantizer(BaseQuantizer):
             x_dq = self.fake_quantize(x, scales=scales, zeros=zeros)
 
         if self.is_profile:
-            self.record_maxval(x=x, qdq_x=x_dq)
+            self.record_stats(x=x, qdq_x=x_dq)
 
         if self.group_size != 0:
             return _undo_reshape_to_blocks(
@@ -211,8 +208,7 @@ class INTQuantizer(BaseQuantizer):
         s = f"Format: {self.str_format.split('.')[-1].upper()}, "
         s += f"Min: {self.q_min}, Max: {self.q_max}, Axes: {self.axes}"
         if self.is_profile:
-            s += f", Op name: {self.op_name}, "
-            s += f"Dynamic range limit: {self.max_limit}"
+            s += f", Op name: {self.op_name}"
         return s
 
 

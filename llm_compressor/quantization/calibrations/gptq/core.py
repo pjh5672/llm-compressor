@@ -91,6 +91,7 @@ def gptq(model, device, n_samples=512, seq_len=2048, mse=False, verbose=True):
 
             for name in subset:
                 columns = subset[name].weight.shape[1]
+                subset[name].weight_quantizer.mse = mse
                 subset[name].weight_quantizer.nsamples = 0
                 subset[name].weight_quantizer.H = torch.zeros(
                     (columns, columns), device=device
@@ -126,7 +127,6 @@ def gptq(model, device, n_samples=512, seq_len=2048, mse=False, verbose=True):
                 update_weight(
                     layer=subset[name],
                     device=device,
-                    mse=mse,
                     block_size=128,
                     percdamp=0.01,
                     actorder=True,
@@ -141,11 +141,12 @@ def gptq(model, device, n_samples=512, seq_len=2048, mse=False, verbose=True):
         inps, outs = outs, inps
 
     model.lm_head.to(device)
+    model.lm_head.weight_quantizer.mse = mse
     model.lm_head.weight.data = model.lm_head.weight_quantizer(
         model.lm_head.weight.data
     )
-    model.lm_head.cpu()
     del model.lm_head.weight_quantizer
+    model.lm_head.cpu()
     cleanup_memory(verbose=False)
 
     model.config.use_cache = use_cache
@@ -154,18 +155,13 @@ def gptq(model, device, n_samples=512, seq_len=2048, mse=False, verbose=True):
     return
 
 
-def update_weight(
-    layer, device, mse=False, block_size=128, percdamp=0.1, actorder=False
-):
+def update_weight(layer, device, block_size=128, percdamp=0.1, actorder=False):
     W = layer.weight.data.clone()
     if isinstance(layer, transformers.Conv1D):
         W = W.t()
     W = W.float()
 
     columns = W.shape[-1]
-
-    if mse:
-        layer.weight_quantizer.mse = True
     group_size = layer.weight_quantizer.group_size
 
     H = layer.weight_quantizer.H
