@@ -28,12 +28,12 @@ class BaseQuantizer(nn.Module):
         raise NotImplementedError
 
     def record_stats(self, x, qdq_x, **kwargs):
-        eps = torch.finfo(x.dtype).eps
-        keys = ("Op Name", "PC99%", "Max", "QDQ(Max)", "SQNR")
+        keys = ("Op Name", "PC95%", "PC99%", "Max", "QDQ(Max)", "Q-Error")
 
-        def compute_sqnr(t, qdq_t):
-            sqnr_value = (torch.sum(t**2) + eps) / (torch.sum((t - qdq_t) ** 2) + eps)
-            return 10 * torch.log10(sqnr_value)
+        def compute_quant_error(t, qdq_t):
+            t_ = (t - t.min()) / (t.max() - t.min())
+            qdq_t_ = (qdq_t - qdq_t.min()) / (qdq_t.max() - qdq_t.min())
+            return -torch.log10(torch.mean((t_ - qdq_t_) ** 2) + 1e-8)
 
         def extract_percentile(t, q):
             k = round(q * (t.numel() - 1))
@@ -43,10 +43,12 @@ class BaseQuantizer(nn.Module):
         qdq_x_ = qdq_x.clone().detach().cpu()
         maxval = x_.max().item()
         qdq_maxval = qdq_x_.max().item()
-        sqnr_val = compute_sqnr(x_, qdq_x_)
-        pc99_val = extract_percentile(x_, 0.99)
 
-        vals = (self.op_name, pc99_val, maxval, qdq_maxval, sqnr_val)
+        pc95_val = extract_percentile(x_, 0.95)
+        pc99_val = extract_percentile(x_, 0.99)
+        qerr_val = compute_quant_error(x_, qdq_x_)
+
+        vals = (self.op_name, pc95_val, pc99_val, maxval, qdq_maxval, qerr_val)
 
         s = (
             ""

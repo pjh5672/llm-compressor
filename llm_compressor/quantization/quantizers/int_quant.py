@@ -223,7 +223,8 @@ if __name__ == "__main__":
         format=ElemFormat.int4,
         group_size=-1,
         axes=-1,
-        zero_point=True,
+        zero_point=False,
+        is_profile=True,
     )
     quantizer.to(device)
     quantizer.mse = False
