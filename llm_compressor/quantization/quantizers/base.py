@@ -28,9 +28,9 @@ class BaseQuantizer(nn.Module):
         raise NotImplementedError
 
     def record_stats(self, x, qdq_x, **kwargs):
-        keys = ("Op Name", "PC95%", "PC99%", "Max", "QDQ(Max)", "Q-Error")
+        keys = ("Op Name", "PC95%", "PC99%", "Max", "QDQ(Max)", "SQNR")
 
-        def compute_quant_error(t, qdq_t):
+        def compute_sqnr(t, qdq_t):
             t_ = (t - t.min()) / (t.max() - t.min())
             qdq_t_ = (qdq_t - qdq_t.min()) / (qdq_t.max() - qdq_t.min())
             return -torch.log10(torch.mean((t_ - qdq_t_) ** 2) + 1e-8)
@@ -46,9 +46,9 @@ class BaseQuantizer(nn.Module):
 
         pc95_val = extract_percentile(x_, 0.95)
         pc99_val = extract_percentile(x_, 0.99)
-        qerr_val = compute_quant_error(x_, qdq_x_)
+        sqnr_val = compute_sqnr(x_, qdq_x_)
 
-        vals = (self.op_name, pc95_val, pc99_val, maxval, qdq_maxval, qerr_val)
+        vals = (self.op_name, pc95_val, pc99_val, maxval, qdq_maxval, sqnr_val)
 
         s = (
             ""
