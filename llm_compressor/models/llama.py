@@ -258,19 +258,19 @@ if __name__ == "__main__":
         device_map="cpu",
     )
 
-    if args.profile:
-        model.profile(
-            quant_config=quant_config,
-            device=device,
-            save_path=args.exp_dir,
-        )
+    # if args.profile:
+    #     model.profile(
+    #         quant_config=quant_config,
+    #         device=device,
+    #         save_path=args.exp_dir,
+    #     )
 
     quant_kwargs = {
         "n_samples": 128,
         "seq_len": 512,
         "rotation_path": args.rotation_path,
     }
-    model.quantize(
+    model = model.quantize(
         tokenizer=tokenizer,
         quant_method=args.quant_method,
         quant_config=quant_config,
@@ -279,8 +279,16 @@ if __name__ == "__main__":
         **quant_kwargs,
     )
     # print(model)
+   
+    # qparser.enable_profile(quant_config)
+    # model.profile(
+    #     quant_config=quant_config,
+    #     device=device,
+    #     save_path=args.exp_dir,
+    # )
+    # print(model)
 
-    evaluator = LMEvaluator(model=model, n_samples=128)
+    evaluator = LMEvaluator(model=model, n_samples=30)
     eval_kwargs = {
         "tokenizer_path": model_path,
         "seq_len": 512,

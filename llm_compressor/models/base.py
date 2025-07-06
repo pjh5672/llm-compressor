@@ -99,7 +99,7 @@ class CompressForCausalLM:
             self._prepare_attention_module(quant_config=quant_config)
 
             if quant_method == "rtn":
-                rtn(self, device, mse=True, verbose=True)
+                rtn(self, device, mse=False, verbose=True)
 
             elif quant_method == "awq":
                 n_samples = kwargs.get("n_samples", 128)
@@ -153,17 +153,18 @@ class CompressForCausalLM:
                 n_samples = kwargs.get("n_samples", 128)
                 seq_len = kwargs.get("seq_len", 2048)
                 rotation_path = kwargs.get("rotation_path")
-                spinquant(
+                model= spinquant(
                     self,
                     device,
                     mode="hadamard",
                     n_samples=n_samples,
                     seq_len=seq_len,
-                    mse=True,
+                    mse=False,
                     verbose=True,
                     quant_config=quant_config,
                     rotation_path=rotation_path,
                 )
+                return model
         else:
             return
 

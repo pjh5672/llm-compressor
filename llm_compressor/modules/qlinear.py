@@ -84,7 +84,8 @@ class QLinear(nn.Linear):
             self.weight.data = self.weight_quantizer(weight.data.to(dtype))
 
         return self.output_quantizer(
-            F.linear(self.input_quantizer(inputs), self.weight, self.bias)
+            F.linear(self.input_quantizer(inputs.to(self.weight)), 
+                     self.weight, self.bias)
         )
 
     def extra_repr(self):

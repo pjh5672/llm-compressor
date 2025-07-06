@@ -2,6 +2,7 @@ from pathlib import Path
 
 import torch
 import torch.nn as nn
+from scipy.stats import kurtosis
 
 
 class BaseQuantizer(nn.Module):
@@ -28,27 +29,32 @@ class BaseQuantizer(nn.Module):
         raise NotImplementedError
 
     def record_stats(self, x, qdq_x, **kwargs):
-        keys = ("Op Name", "PC95%", "PC99%", "Max", "QDQ(Max)", "SQNR")
+        keys = ("Op Name", "PC99%", "Max", "QDQ(Max)", "SQNR", "Kurtosis")
 
         def compute_sqnr(t, qdq_t):
             t_ = (t - t.min()) / (t.max() - t.min())
             qdq_t_ = (qdq_t - qdq_t.min()) / (qdq_t.max() - qdq_t.min())
-            return -torch.log10(torch.mean((t_ - qdq_t_) ** 2) + 1e-8)
+            return -10*torch.log10(torch.mean((t_ - qdq_t_) ** 2) + 1e-10)
 
         def extract_percentile(t, q):
             k = round(q * (t.numel() - 1))
-            return torch.sort(t.flatten())[0][k].item()
+            return torch.sort(t.flatten())[0][k]
+
+        def compute_kurtosis(t):
+            mu = t.mean()
+            std = t.std()
+            z = (t - mu) / (std + 1e-8)
+            return (z ** 4).mean()
 
         x_ = x.clone().detach().cpu()
         qdq_x_ = qdq_x.clone().detach().cpu()
         maxval = x_.max().item()
         qdq_maxval = qdq_x_.max().item()
-
-        pc95_val = extract_percentile(x_, 0.95)
         pc99_val = extract_percentile(x_, 0.99)
         sqnr_val = compute_sqnr(x_, qdq_x_)
+        kurts_val = compute_kurtosis(x_)
 
-        vals = (self.op_name, pc95_val, pc99_val, maxval, qdq_maxval, sqnr_val)
+        vals = (self.op_name, pc99_val, maxval, qdq_maxval, sqnr_val, kurts_val)
 
         s = (
             ""

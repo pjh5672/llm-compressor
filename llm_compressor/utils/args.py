@@ -124,6 +124,26 @@ class QuantConfigParser:
 
         raise RuntimeError(f"Invalid group size, got {nums_str}.")
 
+    def disable_profile(self, quant_config):
+        quant_config.linear["weight"]["is_profile"] = False
+        quant_config.linear["act_in"]["is_profile"] = False
+        quant_config.linear["act_out"]["is_profile"] = False
+        quant_config.matmul["act_out"]["is_profile"] = False
+        quant_config.matmul["act_in"]["is_profile"] = False
+        quant_config.head["weight"]["is_profile"] = False
+        quant_config.head["act_in"]["is_profile"] = False
+        quant_config.head["act_out"]["is_profile"] = False
+
+    def enable_profile(self, quant_config):
+        quant_config.linear["weight"]["is_profile"] = True
+        quant_config.linear["act_in"]["is_profile"] = True
+        quant_config.linear["act_out"]["is_profile"] = True
+        quant_config.matmul["act_out"]["is_profile"] = True
+        quant_config.matmul["act_in"]["is_profile"] = True
+        quant_config.head["weight"]["is_profile"] = True
+        quant_config.head["act_in"]["is_profile"] = True
+        quant_config.head["act_out"]["is_profile"] = True
+
 
 def build_parser(root_dir):
     parser = argparse.ArgumentParser()
@@ -243,9 +263,9 @@ def build_parser(root_dir):
     args.quant_config = args.qparser.build_cfg(
         args.weight, args.act_in, args.act_out, args.head
     )
-    print_args(
-        args=args, exclude_keys=("qparser", "exp_dir", "quant_config"), logger=LOGGER
-    )
+    # print_args(
+    #     args=args, exclude_keys=("qparser", "exp_dir", "quant_config"), logger=LOGGER
+    # )
     return args, device
 
 
