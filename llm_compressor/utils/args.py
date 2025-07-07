@@ -263,9 +263,9 @@ def build_parser(root_dir):
     args.quant_config = args.qparser.build_cfg(
         args.weight, args.act_in, args.act_out, args.head
     )
-    # print_args(
-    #     args=args, exclude_keys=("qparser", "exp_dir", "quant_config"), logger=LOGGER
-    # )
+    print_args(
+        args=args, exclude_keys=("qparser", "exp_dir", "quant_config"), logger=LOGGER
+    )
     return args, device
 
 

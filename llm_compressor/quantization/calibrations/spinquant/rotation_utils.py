@@ -4,8 +4,6 @@ from pathlib import Path
 
 import torch
 from tqdm import tqdm
-from transformers.models.llama.modeling_llama import LlamaDecoderLayer
-from transformers.models.phi.modeling_phi import PhiDecoderLayer
 
 PATH = Path(__file__).resolve().parents[3]
 if str(PATH) not in sys.path:
@@ -66,22 +64,15 @@ def rotate_embeddings(model, R1, device) -> None:
 
 def rotate_attention_inputs(layer, R1, device) -> None:
     # Rotate the WQ, WK and WV matrices of the self-attention layer.
-    if isinstance(layer, (LlamaDecoderLayer, PhiDecoderLayer)):
-        for W in [layer.self_attn.q_proj, layer.self_attn.k_proj, layer.self_attn.v_proj]:
-            dtype = W.weight.dtype
-            W_ = W.weight.to(device=device, dtype=torch.float64)
-            W.weight.data = torch.matmul(W_, R1).to(device="cpu", dtype=dtype)
-    else:
-        raise RuntimeError(f"Not support attention yet, got {layer.__class__.__name__}")
+    for W in [layer.self_attn.q_proj, layer.self_attn.k_proj, layer.self_attn.v_proj]:
+        dtype = W.weight.dtype
+        W_ = W.weight.to(device=device, dtype=torch.float64)
+        W.weight.data = torch.matmul(W_, R1).to(device="cpu", dtype=dtype)
+
 
 def rotate_attention_output(layer, R1, device) -> None:
     # Rotate output matrix of the self-attention layer.
-    if isinstance(layer, LlamaDecoderLayer):
-        W = layer.self_attn.o_proj
-    elif isinstance(layer, PhiDecoderLayer):
-        W = layer.self_attn.dense
-    else:
-        raise RuntimeError(f"Not support attention yet, got {layer.__class__.__name__}")
+    W = layer.self_attn.o_proj
 
     dtype = W.weight.data.dtype
     W_ = W.weight.data.to(device=device, dtype=torch.float64)
@@ -93,13 +84,7 @@ def rotate_attention_output(layer, R1, device) -> None:
 
 def rotate_mlp_input(layer, R1, device):
     # Rotate the MLP input weights.
-    if isinstance(layer, LlamaDecoderLayer):
-        mlp_inputs = [layer.mlp.up_proj, layer.mlp.gate_proj]
-    elif isinstance(layer, PhiDecoderLayer):
-        mlp_inputs = [layer.mlp.fc1]
-    else:
-        raise RuntimeError(f"Not support mlp yet, got {layer.__class__.__name__}")
-    
+    mlp_inputs = [layer.mlp.up_proj, layer.mlp.gate_proj]
     for W in mlp_inputs:
         dtype = W.weight.dtype
         W_ = W.weight.data.to(device=device, dtype=torch.float64)
@@ -108,13 +93,7 @@ def rotate_mlp_input(layer, R1, device):
 
 def rotate_mlp_output(layer, R1, device):
     # Rotate the MLP output weights and bias.
-    if isinstance(layer, LlamaDecoderLayer):
-        W = layer.mlp.down_proj
-    elif isinstance(layer, PhiDecoderLayer):
-        W = layer.mlp.fc2
-    else:
-        raise RuntimeError(f"Not support mlp yet, got {layer.__class__.__name__}")
-    
+    W = layer.mlp.down_proj
     dtype = W.weight.data.dtype
     W_ = W.weight.data.to(device=device, dtype=torch.float64)
     W.weight.data = torch.matmul(R1.T, W_).to(device="cpu", dtype=dtype)
@@ -132,14 +111,8 @@ def rotate_head(model, R1, device) -> None:
 
 
 def rotate_ov_proj(layer, head_dim, R2=None):
-    if isinstance(layer, LlamaDecoderLayer):
-        v_proj = layer.self_attn.v_proj
-        o_proj = layer.self_attn.o_proj
-    elif isinstance(layer, PhiDecoderLayer):
-        v_proj = layer.self_attn.v_proj
-        o_proj = layer.self_attn.dense
-    else:
-        raise RuntimeError(f"Not support attention yet, got {layer}")
+    v_proj = layer.self_attn.v_proj
+    o_proj = layer.self_attn.o_proj
 
     apply_exact_had_to_linear(v_proj, had_dim=head_dim, output=True, R2=R2)
     apply_exact_had_to_linear(o_proj, had_dim=head_dim, output=False, R2=R2)
@@ -158,7 +131,6 @@ def rotate_model(model, rotate_mode, device, **kwargs):
         if os.path.isfile(path):
             LOGGER.debug("Found optimized rotation matrix of R1.")
             R1 = torch.load(path)["R1"].to(device).to(torch.float64)
-
     rotate_embeddings(model, R1, device)
     rotate_head(model, R1, device)
     cleanup_memory(verbose=False)
@@ -184,6 +156,6 @@ def rotate_model(model, rotate_mode, device, **kwargs):
         rotate_attention_output(layers[i], R1, device)
         rotate_mlp_input(layers[i], R1, device)
         rotate_mlp_output(layers[i], R1, device)
-        # rotate_ov_proj(layers[i], head_dim, R2=R2)
+        rotate_ov_proj(layers[i], head_dim, R2=R2)
 
     cleanup_memory(verbose=False)

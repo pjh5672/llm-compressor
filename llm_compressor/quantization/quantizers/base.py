@@ -2,7 +2,6 @@ from pathlib import Path
 
 import torch
 import torch.nn as nn
-from scipy.stats import kurtosis
 
 
 class BaseQuantizer(nn.Module):
@@ -34,18 +33,18 @@ class BaseQuantizer(nn.Module):
         def compute_sqnr(t, qdq_t):
             t_ = (t - t.min()) / (t.max() - t.min())
             qdq_t_ = (qdq_t - qdq_t.min()) / (qdq_t.max() - qdq_t.min())
-            return -10*torch.log10(torch.mean((t_ - qdq_t_) ** 2) + 1e-10)
+            return -10*torch.log10(torch.mean((t_ - qdq_t_) ** 2) + 1e-8)
 
         def extract_percentile(t, q):
             k = round(q * (t.numel() - 1))
-            return torch.sort(t.flatten())[0][k]
+            return torch.sort(t.flatten())[0][k].item()
 
         def compute_kurtosis(t):
             mu = t.mean()
             std = t.std()
             z = (t - mu) / (std + 1e-8)
             return (z ** 4).mean()
-
+        
         x_ = x.clone().detach().cpu()
         qdq_x_ = qdq_x.clone().detach().cpu()
         maxval = x_.max().item()

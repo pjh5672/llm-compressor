@@ -1,3 +1,4 @@
+import os
 import sys
 from pathlib import Path
 
@@ -27,6 +28,7 @@ class LMEvaluator:
         device_map = infer_auto_device_map(
             model=model, no_split_module_classes=model._no_split_modules, **mem_kwargs
         )
+        self.tokenizer_path = model.config._name_or_path.rstrip(os.sep)
         self.model = dispatch_model(model, device_map=device_map)
         self.n_samples = n_samples
 
@@ -39,11 +41,10 @@ class LMEvaluator:
         tasks = tasks.split(",")
         if "ppl" in tasks:
             datasets = ["wikitext2"]
-            tokenizer_path = kwargs.get("tokenizer_path")
             seq_len = kwargs.get("seq_len", 2048)
             ppl = self.eval_ppl(
                 model=self.model,
-                tokenizer_path=tokenizer_path,
+                tokenizer_path=self.tokenizer_path,
                 datasets=datasets,
                 seq_len=seq_len,
             )

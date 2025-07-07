@@ -19,8 +19,7 @@ if str(PATH) not in sys.path:
 from utils.general import LOGGER  # noqa: E402
 from quantization.calibrations.rtn.core import rtn  # noqa: E402, F401
 from quantization.calibrations.gptq.core import gptq  # noqa: E402, F401
-# from quantization.calibrations.spinquant.modeling.llama import SpinLlamaForCausalLM  # noqa: E402
-from quantization.calibrations.spinquant.modeling.llama_test import SpinLlamaForCausalLM  # noqa: E402
+from quantization.calibrations.spinquant.modeling.llama import SpinLlamaForCausalLM  # noqa: E402
 from quantization.calibrations.spinquant.rotation_utils import (
     rotate_model,
     random_hadamard_matrix,
@@ -55,23 +54,6 @@ def spinquant(
 ):
     if verbose:
         LOGGER.info("Rotating model... [Quant-method : SpinQuant]")
-
-    model_path = model.config._name_or_path
-    quant_config = kwargs.get("quant_config")
-    
-    model = SpinLlamaForCausalLM.from_pretrained(
-            model_path,
-            attn_implementation="eager",
-            torch_dtype=torch.bfloat16,
-            device_map="auto",
-        )
-
-    model._prepare_model(quant_config=quant_config, mse=mse)
-    for param in model.parameters():
-        param.requires_grad = False
-
-    R1 = random_hadamard_matrix(model.config.hidden_size, model.device)
-    # model.R1 = RotateModule(R1, model.device)
 
     if mode == "optimize":
         LOGGER.info("Optimizing rotation matrix...")
@@ -171,13 +153,13 @@ def spinquant(
         model.config.tie_word_embeddings = False
         model.lm_head.weight.data = model.model.embed_tokens.weight.data.clone()
 
-    # fuse_layer_norms(model)
-    # rotate_model(model, "hadamard", device, rotation_path=kwargs.get("rotation_path"))
+    fuse_layer_norms(model)
+    rotate_model(model, "hadamard", device, rotation_path=kwargs.get("rotation_path"))
 
     # rtn(model, device, mse=mse, verbose=False)
-    # gptq(model, device, n_samples, seq_len, mse=mse, verbose=False)
+    gptq(model, device, n_samples, seq_len, mse=mse, verbose=False)
 
     model.config.use_cache = use_cache
     if verbose:
         LOGGER.info("Quantization complete !")
-    return model
+    return
