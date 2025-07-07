@@ -7,6 +7,7 @@ from datetime import datetime
 import torch
 import numpy as np
 from loguru import logger
+import matplotlib.pyplot as plt
 
 logger.remove()
 logger.add(
@@ -98,3 +99,18 @@ def print_eval(result):
         s += f"{k.upper():>20s}{v:>20g}\n"
     s += "=====" * 8
     LOGGER.info(s)
+
+
+def draw_2d_dist(x, title, weight=True, save_dir="./"):
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    ax.set_title(title)
+    if weight:
+        ax.set_xlabel("in-channel")
+        ax.set_ylabel("out-channel")
+    else:
+        ax.set_xlabel("channel")
+        ax.set_ylabel("token")
+    _ax = ax.matshow(x.abs().numpy(), cmap="cool")
+    fig.colorbar(_ax)
+    fig.savefig(Path(save_dir) / f"{title}.png")
