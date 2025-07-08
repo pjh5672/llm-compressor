@@ -59,10 +59,19 @@ class LlamaMLP(nn.Module):
         self.act_fn = ACT2FN[config.hidden_act]
 
     def forward(self, x):
-        # self.gate_proj.weight.data = (self.gate_proj.weight.data.to(torch.float64) @ R1).to(DTYPE)
-        # self.up_proj.weight.data = (self.up_proj.weight.data.to(torch.float64) @ R1).to(DTYPE)
-        # self.down_proj.weight.data = (R1.T @ self.down_proj.weight.data.to(torch.float64)).to(DTYPE)
-        
+        self.gate_proj.weight.data = (self.gate_proj.weight.data.to(torch.float64) @ R1).to(DTYPE)
+        self.up_proj.weight.data = (self.up_proj.weight.data.to(torch.float64) @ R1).to(DTYPE)
+        self.down_proj.weight.data = (R1.T @ self.down_proj.weight.data.to(torch.float64)).to(DTYPE)
+        x1 = self.gate_proj(x)
+        print('gate_proj')
+        print(x1)
+        x1 = self.act_fn(x1)
+        x2 = self.up_proj(x)
+        print('up_proj')
+        print(x2)
+        down_proj = self.down_proj(x1 * x2)
+        print('down_proj')
+        print(down_proj)
         down_proj = self.down_proj(self.act_fn(self.gate_proj(x)) * self.up_proj(x))
         return down_proj
     
@@ -105,14 +114,22 @@ class LlamaAttention(nn.Module):
         input_shape = hidden_states.shape[:-1]
         hidden_shape = (*input_shape, -1, self.head_dim)
         
-        # self.q_proj.weight.data = (self.q_proj.weight.data.to(torch.float64) @ R1).to(DTYPE)
-        # self.k_proj.weight.data = (self.k_proj.weight.data.to(torch.float64) @ R1).to(DTYPE)
-        # self.v_proj.weight.data = (self.v_proj.weight.data.to(torch.float64) @ R1).to(DTYPE)
+        self.q_proj.weight.data = (self.q_proj.weight.data.to(torch.float64) @ R1).to(DTYPE)
+        self.k_proj.weight.data = (self.k_proj.weight.data.to(torch.float64) @ R1).to(DTYPE)
+        self.v_proj.weight.data = (self.v_proj.weight.data.to(torch.float64) @ R1).to(DTYPE)
+        self.o_proj.weight.data = (R1.T @ self.o_proj.weight.data.to(torch.float64)).to(DTYPE)
 
         query_states = self.q_proj(hidden_states).view(hidden_shape).transpose(1, 2)
         key_states = self.k_proj(hidden_states).view(hidden_shape).transpose(1, 2)
         value_states = self.v_proj(hidden_states).view(hidden_shape).transpose(1, 2)
 
+        print("query")
+        print(query_states)
+        print("key")
+        print(key_states)
+        print("value")
+        print(value_states)
+        # raise
         cos, sin = position_embeddings
         query_states, key_states = apply_rotary_pos_emb(query_states, key_states, cos, sin)
 
@@ -135,10 +152,9 @@ class LlamaAttention(nn.Module):
         )
 
         attn_output = attn_output.reshape(*input_shape, -1).contiguous()
-
-        # self.o_proj.weight.data = (R1.T @ self.o_proj.weight.data.to(torch.float64)).to(DTYPE)
         attn_output = self.o_proj(attn_output)
-
+        print("attn_out")
+        print(attn_output)
         return attn_output, attn_weights
 
 
@@ -167,6 +183,7 @@ class LlamaDecoderLayer(GradientCheckpointingLayer):
         **kwargs: Unpack[FlashAttentionKwargs],
     ) -> Tuple[torch.FloatTensor, Optional[Tuple[torch.FloatTensor, torch.FloatTensor]]]:
         
+        print("layer :", self.layer_idx)
         residual = hidden_states
         hidden_states = self.input_layernorm(hidden_states)
 
@@ -183,17 +200,23 @@ class LlamaDecoderLayer(GradientCheckpointingLayer):
             **kwargs,
         )
         hidden_states = residual + hidden_states
+        print('atten : residual + hidden_states')
+        print(hidden_states)
 
         # Fully Connected
         residual = hidden_states
         hidden_states = self.post_attention_layernorm(hidden_states)
         hidden_states = self.mlp(hidden_states)
         hidden_states = residual + hidden_states
+        print('mlp : residual + hidden_states')
+        print(hidden_states)
 
         outputs = (hidden_states,)
         if output_attentions:
             outputs += (self_attn_weights,)
 
+        if self.layer_idx == 1:
+            raise
         return outputs
     
 
@@ -252,7 +275,8 @@ class LlamaModel(LlamaPreTrainedModel):
         if not isinstance(past_key_values, (type(None), Cache)):
             raise ValueError("The `past_key_values` should be either a `Cache` object or `None`.")
 
-        # self.embed_tokens.weight.data = (self.embed_tokens.weight.data.to(torch.float64) @ R1).to(DTYPE)
+        
+        self.embed_tokens.weight.data = (self.embed_tokens.weight.data.to(torch.float64) @ R1).to(DTYPE)
         if inputs_embeds is None:
             inputs_embeds = self.embed_tokens(input_ids)
         # inputs_embeds = (inputs_embeds.to(torch.float64) @ R1).to(DTYPE)
@@ -497,7 +521,7 @@ class LlamaForCausalLM(LlamaPreTrainedModel, GenerationMixin):
 
         hidden_states = outputs.last_hidden_state
 
-        # dtype = hidden_states.dtype
+
         # hidden_states = (hidden_states.to(torch.float64) @ R1.T).to(DTYPE)
         # self.lm_head.weight.data = (self.lm_head.weight.data.to(torch.float64) @ R1).to(DTYPE)
 
