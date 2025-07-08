@@ -59,6 +59,10 @@ class LlamaMLP(nn.Module):
         self.act_fn = ACT2FN[config.hidden_act]
 
     def forward(self, x):
+        # self.gate_proj.weight.data = (self.gate_proj.weight.data.to(torch.float64) @ R1).to(DTYPE)
+        # self.up_proj.weight.data = (self.up_proj.weight.data.to(torch.float64) @ R1).to(DTYPE)
+        # self.down_proj.weight.data = (R1.T @ self.down_proj.weight.data.to(torch.float64)).to(DTYPE)
+        
         down_proj = self.down_proj(self.act_fn(self.gate_proj(x)) * self.up_proj(x))
         return down_proj
     
@@ -101,9 +105,9 @@ class LlamaAttention(nn.Module):
         input_shape = hidden_states.shape[:-1]
         hidden_shape = (*input_shape, -1, self.head_dim)
         
-        if self.layer_idx == 0:
-            dtype = hidden_states.dtype
-            hidden_states = (hidden_states.to(torch.float64) @ R1).to(dtype)
+        # self.q_proj.weight.data = (self.q_proj.weight.data.to(torch.float64) @ R1).to(DTYPE)
+        # self.k_proj.weight.data = (self.k_proj.weight.data.to(torch.float64) @ R1).to(DTYPE)
+        # self.v_proj.weight.data = (self.v_proj.weight.data.to(torch.float64) @ R1).to(DTYPE)
 
         query_states = self.q_proj(hidden_states).view(hidden_shape).transpose(1, 2)
         key_states = self.k_proj(hidden_states).view(hidden_shape).transpose(1, 2)
@@ -132,10 +136,7 @@ class LlamaAttention(nn.Module):
 
         attn_output = attn_output.reshape(*input_shape, -1).contiguous()
 
-        if self.layer_idx == 0:
-            # self.o_proj.weight.data = (R1.T @ self.o_proj.weight.data.to(torch.float64)).to(DTYPE)
-            attn_output = (attn_output.to(torch.float64) @ R1.T).to(dtype)
-
+        # self.o_proj.weight.data = (R1.T @ self.o_proj.weight.data.to(torch.float64)).to(DTYPE)
         attn_output = self.o_proj(attn_output)
 
         return attn_output, attn_weights
@@ -168,10 +169,6 @@ class LlamaDecoderLayer(GradientCheckpointingLayer):
         
         residual = hidden_states
         hidden_states = self.input_layernorm(hidden_states)
-        
-        # if self.layer_idx == 0:
-        #     dtype = residual.dtype
-        #     residual = (residual.to(torch.float64) @ R1.T).to(dtype)
 
         # Self Attention
         hidden_states, self_attn_weights = self.self_attn(
@@ -255,12 +252,11 @@ class LlamaModel(LlamaPreTrainedModel):
         if not isinstance(past_key_values, (type(None), Cache)):
             raise ValueError("The `past_key_values` should be either a `Cache` object or `None`.")
 
+        # self.embed_tokens.weight.data = (self.embed_tokens.weight.data.to(torch.float64) @ R1).to(DTYPE)
         if inputs_embeds is None:
             inputs_embeds = self.embed_tokens(input_ids)
+        # inputs_embeds = (inputs_embeds.to(torch.float64) @ R1).to(DTYPE)
         
-        # dtype = inputs_embeds.dtype
-        # inputs_embeds = (inputs_embeds.to(torch.float64) @ R1).to(dtype)
-
         if use_cache and past_key_values is None:
             past_key_values = DynamicCache()
 
@@ -502,8 +498,9 @@ class LlamaForCausalLM(LlamaPreTrainedModel, GenerationMixin):
         hidden_states = outputs.last_hidden_state
 
         # dtype = hidden_states.dtype
-        # hidden_states = (hidden_states.to(torch.float64) @ R1.T).to(dtype)
-        
+        # hidden_states = (hidden_states.to(torch.float64) @ R1.T).to(DTYPE)
+        # self.lm_head.weight.data = (self.lm_head.weight.data.to(torch.float64) @ R1).to(DTYPE)
+
         # Only compute necessary logits, and do not upcast them to float if we are not computing the loss
         slice_indices = slice(-logits_to_keep, None) if isinstance(logits_to_keep, int) else logits_to_keep
         logits = self.lm_head(hidden_states[:, slice_indices, :])
@@ -575,7 +572,7 @@ if __name__ == "__main__":
 
     
     model_path = "d:\\models\\llama-3.2-1b-it"
-    tokenizer = AutoTokenizer.from_pretrained(model_path, use_fast=False)
+    tokenizer = AutoTokenizer.from_pretrained(model_path)
     model = LlamaForCausalLM.from_pretrained(
         model_path,
         attn_implementation="eager",
@@ -589,7 +586,8 @@ if __name__ == "__main__":
     testdata = load_dataset("wikitext", "wikitext-2-raw-v1", split="test")
     testenc = tokenizer("\n\n".join(testdata["text"]), return_tensors="pt")
     batch = testenc.input_ids[:, :512]
-    y = model(batch.to(DEVICE))
+    with torch.no_grad():
+        y = model(batch.to(DEVICE))
     print(y.logits)
     # tensor([[[ 2.8281,  3.5469,  7.0000,  ..., -1.2500, -1.2500, -1.2500],
     #      [ 8.5000,  8.8125, 17.3750,  ..., -0.1943, -0.1953, -0.1953],

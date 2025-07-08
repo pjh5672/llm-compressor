@@ -15,7 +15,7 @@ def get_wikitext2(tokenizer_path, nsamples, seqlen, seed):
     traindata = load_dataset("wikitext", "wikitext-2-raw-v1", split="train")
     testdata = load_dataset("wikitext", "wikitext-2-raw-v1", split="test")
 
-    tokenizer = AutoTokenizer.from_pretrained(tokenizer_path, use_fast=False)
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
     trainenc = tokenizer("\n\n".join(traindata["text"]), return_tensors="pt")
     testenc = tokenizer("\n\n".join(testdata["text"]), return_tensors="pt")
 
@@ -39,7 +39,7 @@ def get_ptb(tokenizer_path, nsamples, seqlen, seed):
         "ptb_text_only", "penn_treebank", split="test", trust_remote_code=True
     )
 
-    tokenizer = AutoTokenizer.from_pretrained(tokenizer_path, use_fast=False)
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
     trainenc = tokenizer("\n\n".join(traindata["sentence"]), return_tensors="pt")
     testenc = tokenizer("\n\n".join(testdata["sentence"]), return_tensors="pt")
 
@@ -67,7 +67,7 @@ def get_c4(tokenizer_path, nsamples, seqlen, seed):
         split="validation",
     )
 
-    tokenizer = AutoTokenizer.from_pretrained(tokenizer_path, use_fast=False)
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
 
     random.seed(seed)
     trainloader = []
@@ -207,6 +207,6 @@ if __name__ == "__main__":
         block_size=2048,
     )
 
-    tokenizer = AutoTokenizer.from_pretrained(tokenizer_path, use_fast=False)
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
     samples = get_calib_dataset(tokenizer=tokenizer)
     print(samples)

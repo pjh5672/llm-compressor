@@ -19,10 +19,13 @@ from utils.module import check_sparsity  # noqa: E402
 
 
 class LMEvaluator:
-    def __init__(self, model, n_samples=None):
+    def __init__(self, model, n_samples=None, is_check_sparsity=False):
         # Move the model to GPUs (as much as possible) for LM evaluation
         if model.config.tie_word_embeddings:
             model.tie_weights()
+        
+        if is_check_sparsity:
+            check_sparsity(model, torch.device("cuda:0"))
 
         mem_kwargs = {"max_memory": get_balanced_memory(model)}
         device_map = infer_auto_device_map(
@@ -34,9 +37,7 @@ class LMEvaluator:
 
     def eval(self, tasks, **kwargs):
         LOGGER.info("Evaluating compressed model...")
-        if kwargs.get("check_sparsity", False):
-            check_sparsity(self.model, self.model.device)
-
+        
         results = {}
         tasks = tasks.split(",")
         if "ppl" in tasks:

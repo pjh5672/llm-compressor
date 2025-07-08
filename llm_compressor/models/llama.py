@@ -250,7 +250,7 @@ if __name__ == "__main__":
     quant_config = qparser.build_cfg(args.weight, args.act_in, args.act_out, args.head)
 
     model_path = "d:\\models\\llama-3.2-1b-it"
-    tokenizer = AutoTokenizer.from_pretrained(model_path, use_fast=False)
+    tokenizer = AutoTokenizer.from_pretrained(model_path)
     model = CompressLlamaForCausalLM.from_pretrained(
         model_path,
         attn_implementation="eager",
@@ -285,7 +285,6 @@ if __name__ == "__main__":
         "tokenizer_path": model_path,
         "seq_len": 512,
         "batch_size": 1,
-        "check_sparsity": False,
     }
     results = evaluator.eval(tasks="ppl", **eval_kwargs)
     print(results)

@@ -85,7 +85,7 @@ class CompressForCausalLM:
 
         LOGGER.info("Profiling activations...")
         tokenizer_path = self.config._name_or_path.rstrip(os.sep)
-        tokenizer = AutoTokenizer.from_pretrained(tokenizer_path, use_fast=False)
+        tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
         testdata = load_dataset("wikitext", "wikitext-2-raw-v1", split="test")
         testenc = tokenizer("\n\n".join(testdata["text"]), return_tensors="pt")
 
