@@ -235,7 +235,7 @@ def build_parser(root_dir):
     )
 
     parser.add_argument(
-        "--batch-size", type=int, default=8, help="Evaluation batch size"
+        "--batch-size", type=int, default=1, help="Evaluation batch size"
     )
 
     parser.add_argument(
