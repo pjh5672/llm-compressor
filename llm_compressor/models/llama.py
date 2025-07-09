@@ -273,7 +273,7 @@ if __name__ == "__main__":
         device=device,
         prune=args.prune,
     )
-    
+
     quant_kwargs = {
         "n_samples": 128,
         "seq_len": 512,

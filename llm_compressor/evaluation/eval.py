@@ -23,7 +23,7 @@ class LMEvaluator:
         # Move the model to GPUs (as much as possible) for LM evaluation
         if model.config.tie_word_embeddings:
             model.tie_weights()
-        
+
         if is_check_sparsity:
             check_sparsity(model, torch.device("cuda:0"))
 
@@ -37,7 +37,7 @@ class LMEvaluator:
 
     def eval(self, tasks, **kwargs):
         LOGGER.info("Evaluating compressed model...")
-        
+
         results = {}
         tasks = tasks.split(",")
         if "ppl" in tasks:
