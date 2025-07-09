@@ -102,8 +102,14 @@ class LMEvaluator:
         results = {}
         for task in tasks:
             try:
+                num_fewshot = 0
+                if task == "mmlu":
+                    num_fewshot = 5
                 acc = self.compute_zeroshot(
-                    model=model, task=task, batch_size=batch_size
+                    model=model,
+                    task=task,
+                    batch_size=batch_size,
+                    num_fewshot=num_fewshot,
                 )
                 if task == "lambada":
                     results[task] = acc["results"]["lambada_openai"]["acc,none"] * 100

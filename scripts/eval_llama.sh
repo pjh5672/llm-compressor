@@ -5,7 +5,7 @@ python examples/llama.py \
     --model d:\\models\\llama-3.2-1b-it \
     --exp llama-eval \
     --seq-len 512 \
-    --task ppl \
+    --task ppl,mmlu \
     --device 0
     
 # W4A8 G128 symmetric RTN quant.
@@ -17,7 +17,7 @@ python examples/llama.py \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
     --seq-len 512 \
-    --task ppl \
+    --task ppl,mmlu \
     --device 0
 
 # W4A8 G128 symmetric GPTQ quant.
@@ -29,7 +29,7 @@ python examples/llama.py \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
     --seq-len 512 \
-    --task ppl \
+    --task ppl,mmlu \
     --device 0
 
 # W4A8 G128 symmetric AWQ quant.
@@ -41,7 +41,7 @@ python examples/llama.py \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
     --seq-len 512 \
-    --task ppl \
+    --task ppl,mmlu \
     --device 0
 
 # W4A8 G128 symmetric AWQ+ quant.
@@ -53,7 +53,7 @@ python examples/llama.py \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
     --seq-len 512 \
-    --task ppl \
+    --task ppl,mmlu \
     --device 0
 
 # W4A8 G128 symmetric SpinQuant quant.
@@ -65,7 +65,7 @@ python examples/llama.py \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
     --seq-len 512 \
-    --task ppl \
+    --task ppl,mmlu \
     --device 0
 
 ####################################################################
@@ -76,7 +76,7 @@ python examples/llama.py \
     --model d:\\models\\llama-3.2-3b-it \
     --exp llama-eval \
     --seq-len 512 \
-    --task ppl \
+    --task ppl,mmlu \
     --device 0
     
 # W4A8 G128 symmetric RTN quant.
@@ -88,7 +88,7 @@ python examples/llama.py \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
     --seq-len 512 \
-    --task ppl \
+    --task ppl,mmlu \
     --device 0
 
 # W4A8 G128 symmetric GPTQ quant.
@@ -100,7 +100,7 @@ python examples/llama.py \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
     --seq-len 512 \
-    --task ppl \
+    --task ppl,mmlu \
     --device 0
 
 # W4A8 G128 symmetric AWQ quant.
@@ -112,7 +112,7 @@ python examples/llama.py \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
     --seq-len 512 \
-    --task ppl \
+    --task ppl,mmlu \
     --device 0
 
 # W4A8 G128 symmetric AWQ+ quant.
@@ -124,7 +124,7 @@ python examples/llama.py \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
     --seq-len 512 \
-    --task ppl \
+    --task ppl,mmlu \
     --device 0
 
 # W4A8 G128 symmetric SpinQuant quant.
@@ -136,5 +136,5 @@ python examples/llama.py \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
     --seq-len 512 \
-    --task ppl \
+    --task ppl,mmlu \
     --device 0
