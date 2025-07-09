@@ -3,7 +3,7 @@
 # bf16 model
 python examples/bloom.py \
     --model d:\\models\\bloom-560m \
-    --exp-name bloom-eval \
+    --exp bloom-eval \
     --seq-len 512 \
     --task ppl \
     --device 0
@@ -11,7 +11,7 @@ python examples/bloom.py \
 # W4A8 G128 symmetric RTN quant.
 python examples/bloom.py \
     --model d:\\models\\bloom-560m \
-    --exp-name bloom-eval \
+    --exp bloom-eval \
     --quantize \
     --quant-method rtn \
     --weight int4-g[128]-rw \
@@ -23,7 +23,7 @@ python examples/bloom.py \
 # W4A8 G128 symmetric GPTQ quant.
 python examples/bloom.py \
     --model d:\\models\\bloom-560m \
-    --exp-name bloom-eval \
+    --exp bloom-eval \
     --quantize \
     --quant-method gptq \
     --weight int4-g[128]-rw \
@@ -35,7 +35,7 @@ python examples/bloom.py \
 # W4A8 G128 symmetric AWQ quant.
 python examples/bloom.py \
     --model d:\\models\\bloom-560m \
-    --exp-name bloom-eval \
+    --exp bloom-eval \
     --quantize \
     --quant-method awq \
     --weight int4-g[128]-rw \
@@ -47,7 +47,7 @@ python examples/bloom.py \
 # W4A8 G128 symmetric AWQ+ quant.
 python examples/bloom.py \
     --model d:\\models\\bloom-560m \
-    --exp-name bloom-eval \
+    --exp bloom-eval \
     --quantize \
     --quant-method awq_plus \
     --weight int4-g[128]-rw \
@@ -62,7 +62,7 @@ python examples/bloom.py \
 # bf16 model
 python examples/bloom.py \
     --model d:\\models\\bloom-1.1b \
-    --exp-name bloom-eval \
+    --exp bloom-eval \
     --seq-len 512 \
     --task ppl \
     --device 0
@@ -70,7 +70,7 @@ python examples/bloom.py \
 # W4A8 G128 symmetric RTN quant.
 python examples/bloom.py \
     --model d:\\models\\bloom-1.1b \
-    --exp-name bloom-eval \
+    --exp bloom-eval \
     --quantize \
     --quant-method rtn \
     --weight int4-g[128]-rw \
@@ -82,7 +82,7 @@ python examples/bloom.py \
 # W4A8 G128 symmetric GPTQ quant.
 python examples/bloom.py \
     --model d:\\models\\bloom-1.1b \
-    --exp-name bloom-eval \
+    --exp bloom-eval \
     --quantize \
     --quant-method gptq \
     --weight int4-g[128]-rw \
@@ -94,7 +94,7 @@ python examples/bloom.py \
 # W4A8 G128 symmetric AWQ quant.
 python examples/bloom.py \
     --model d:\\models\\bloom-1.1b \
-    --exp-name bloom-eval \
+    --exp bloom-eval \
     --quantize \
     --quant-method awq \
     --weight int4-g[128]-rw \
@@ -106,7 +106,7 @@ python examples/bloom.py \
 # W4A8 G128 symmetric AWQ+ quant.
 python examples/bloom.py \
     --model d:\\models\\bloom-1.1b \
-    --exp-name bloom-eval \
+    --exp bloom-eval \
     --quantize \
     --quant-method awq_plus \
     --weight int4-g[128]-rw \
@@ -121,7 +121,7 @@ python examples/bloom.py \
 # bf16 model
 python examples/bloom.py \
     --model d:\\models\\bloom-1.7b \
-    --exp-name bloom-eval \
+    --exp bloom-eval \
     --seq-len 512 \
     --task ppl \
     --device 0
@@ -129,7 +129,7 @@ python examples/bloom.py \
 # W4A8 G128 symmetric RTN quant.
 python examples/bloom.py \
     --model d:\\models\\bloom-1.7b \
-    --exp-name bloom-eval \
+    --exp bloom-eval \
     --quantize \
     --quant-method rtn \
     --weight int4-g[128]-rw \
@@ -141,7 +141,7 @@ python examples/bloom.py \
 # W4A8 G128 symmetric GPTQ quant.
 python examples/bloom.py \
     --model d:\\models\\bloom-1.7b \
-    --exp-name bloom-eval \
+    --exp bloom-eval \
     --quantize \
     --quant-method gptq \
     --weight int4-g[128]-rw \
@@ -153,7 +153,7 @@ python examples/bloom.py \
 # W4A8 G128 symmetric AWQ quant.
 python examples/bloom.py \
     --model d:\\models\\bloom-1.7b \
-    --exp-name bloom-eval \
+    --exp bloom-eval \
     --quantize \
     --quant-method awq \
     --weight int4-g[128]-rw \
@@ -165,7 +165,7 @@ python examples/bloom.py \
 # W4A8 G128 symmetric AWQ+ quant.
 python examples/bloom.py \
     --model d:\\models\\bloom-1.7b \
-    --exp-name bloom-eval \
+    --exp bloom-eval \
     --quantize \
     --quant-method awq_plus \
     --weight int4-g[128]-rw \
@@ -180,7 +180,7 @@ python examples/bloom.py \
 # bf16 model
 python examples/bloom.py \
     --model d:\\models\\bloom-3b \
-    --exp-name bloom-eval \
+    --exp bloom-eval \
     --seq-len 512 \
     --task ppl \
     --device 0
@@ -188,7 +188,7 @@ python examples/bloom.py \
 # W4A8 G128 symmetric RTN quant.
 python examples/bloom.py \
     --model d:\\models\\bloom-3b \
-    --exp-name bloom-eval \
+    --exp bloom-eval \
     --quantize \
     --quant-method rtn \
     --weight int4-g[128]-rw \
@@ -200,7 +200,7 @@ python examples/bloom.py \
 # W4A8 G128 symmetric GPTQ quant.
 python examples/bloom.py \
     --model d:\\models\\bloom-3b \
-    --exp-name bloom-eval \
+    --exp bloom-eval \
     --quantize \
     --quant-method gptq \
     --weight int4-g[128]-rw \
@@ -212,7 +212,7 @@ python examples/bloom.py \
 # W4A8 G128 symmetric AWQ quant.
 python examples/bloom.py \
     --model d:\\models\\bloom-3b \
-    --exp-name bloom-eval \
+    --exp bloom-eval \
     --quantize \
     --quant-method awq \
     --weight int4-g[128]-rw \
@@ -224,7 +224,7 @@ python examples/bloom.py \
 # W4A8 G128 symmetric AWQ+ quant.
 python examples/bloom.py \
     --model d:\\models\\bloom-3b \
-    --exp-name bloom-eval \
+    --exp bloom-eval \
     --quantize \
     --quant-method awq_plus \
     --weight int4-g[128]-rw \

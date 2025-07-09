@@ -3,7 +3,7 @@
 # bf16 model
 python examples/llama.py \
     --model d:\\models\\llama-3.2-1b-it \
-    --exp-name llama-eval \
+    --exp llama-eval \
     --seq-len 512 \
     --task ppl \
     --device 0
@@ -11,7 +11,7 @@ python examples/llama.py \
 # W4A8 G128 symmetric RTN quant.
 python examples/llama.py \
     --model d:\\models\\llama-3.2-1b-it \
-    --exp-name llama-eval \
+    --exp llama-eval \
     --quantize \
     --quant-method rtn \
     --weight int4-g[128]-rw \
@@ -23,7 +23,7 @@ python examples/llama.py \
 # W4A8 G128 symmetric GPTQ quant.
 python examples/llama.py \
     --model d:\\models\\llama-3.2-1b-it \
-    --exp-name llama-eval \
+    --exp llama-eval \
     --quantize \
     --quant-method gptq \
     --weight int4-g[128]-rw \
@@ -35,7 +35,7 @@ python examples/llama.py \
 # W4A8 G128 symmetric AWQ quant.
 python examples/llama.py \
     --model d:\\models\\llama-3.2-1b-it \
-    --exp-name llama-eval \
+    --exp llama-eval \
     --quantize \
     --quant-method awq \
     --weight int4-g[128]-rw \
@@ -47,7 +47,7 @@ python examples/llama.py \
 # W4A8 G128 symmetric AWQ+ quant.
 python examples/llama.py \
     --model d:\\models\\llama-3.2-1b-it \
-    --exp-name llama-eval \
+    --exp llama-eval \
     --quantize \
     --quant-method awq_plus \
     --weight int4-g[128]-rw \
@@ -59,7 +59,7 @@ python examples/llama.py \
 # W4A8 G128 symmetric SpinQuant quant.
 python examples/llama.py \
     --model d:\\models\\llama-3.2-1b-it \
-    --exp-name llama-eval \
+    --exp llama-eval \
     --quantize \
     --quant-method spinquant-had \
     --weight int4-g[128]-rw \
@@ -74,7 +74,7 @@ python examples/llama.py \
 # bf16 model
 python examples/llama.py \
     --model d:\\models\\llama-3.2-3b-it \
-    --exp-name llama-eval \
+    --exp llama-eval \
     --seq-len 512 \
     --task ppl \
     --device 0
@@ -82,7 +82,7 @@ python examples/llama.py \
 # W4A8 G128 symmetric RTN quant.
 python examples/llama.py \
     --model d:\\models\\llama-3.2-3b-it \
-    --exp-name llama-eval \
+    --exp llama-eval \
     --quantize \
     --quant-method rtn \
     --weight int4-g[128]-rw \
@@ -94,7 +94,7 @@ python examples/llama.py \
 # W4A8 G128 symmetric GPTQ quant.
 python examples/llama.py \
     --model d:\\models\\llama-3.2-3b-it \
-    --exp-name llama-eval \
+    --exp llama-eval \
     --quantize \
     --quant-method gptq \
     --weight int4-g[128]-rw \
@@ -106,7 +106,7 @@ python examples/llama.py \
 # W4A8 G128 symmetric AWQ quant.
 python examples/llama.py \
     --model d:\\models\\llama-3.2-3b-it \
-    --exp-name llama-eval \
+    --exp llama-eval \
     --quantize \
     --quant-method awq \
     --weight int4-g[128]-rw \
@@ -118,7 +118,7 @@ python examples/llama.py \
 # W4A8 G128 symmetric AWQ+ quant.
 python examples/llama.py \
     --model d:\\models\\llama-3.2-3b-it \
-    --exp-name llama-eval \
+    --exp llama-eval \
     --quantize \
     --quant-method awq_plus \
     --weight int4-g[128]-rw \
@@ -130,7 +130,7 @@ python examples/llama.py \
 # W4A8 G128 symmetric SpinQuant quant.
 python examples/llama.py \
     --model d:\\models\\llama-3.2-3b-it \
-    --exp-name llama-eval \
+    --exp llama-eval \
     --quantize \
     --quant-method spinquant-had \
     --weight int4-g[128]-rw \
