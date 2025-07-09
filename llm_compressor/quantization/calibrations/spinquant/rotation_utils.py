@@ -135,7 +135,7 @@ def rotate_model(model, rotate_mode, device, **kwargs):
     rotate_head(model, R1, device)
     cleanup_memory(verbose=False)
 
-    layers = model.model.layers
+    layers = model.get_layers()
     pg_bar = tqdm(range(len(layers)))
     for i in pg_bar:
         s = f"Rotating layer.{i:02}..."

@@ -257,8 +257,8 @@ def build_parser(root_dir):
     device = select_device(device=args.device, batch_size=args.batch_size)
     LOGGER.add(args.exp_dir / f"{file_date()}.log", level="DEBUG")
 
-    pparser = PruneConfigParser()
-    args.prune_config = pparser.build_cfg(sparsity=args.sparsity)
+    args.pparser = PruneConfigParser()
+    args.prune_config = args.pparser.build_cfg(sparsity=args.sparsity)
     args.qparser = QuantConfigParser(profile=args.profile)
     args.quant_config = args.qparser.build_cfg(
         args.weight, args.act_in, args.act_out, args.head

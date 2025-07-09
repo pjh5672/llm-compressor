@@ -38,7 +38,8 @@ if args.profile:
         device=device,
         save_path=args.exp_dir,
     )
-    
+    args.qparser.disable_profile(args.quant_config)
+
 ############### Model Quantization ###############
 quant_kwargs = {
     "n_samples": args.calib_num,
@@ -55,14 +56,17 @@ model.quantize(
 )
 
 ############### Model Evaluation ###############
-evaluator = LMEvaluator(model=model, n_samples=128)
+evaluator = LMEvaluator(
+    model=model, 
+    n_samples=128, 
+    is_check_sparsity=args.prune
+)
 eval_kwargs = {
     "tokenizer_path": args.model,
     "seq_len": args.seq_len,
     "batch_size": args.batch_size,
-    "check_sparsity": args.prune,
 }
-results = evaluator.eval(tasks="ppl", **eval_kwargs)
+results = evaluator.eval(tasks=args.tasks, **eval_kwargs)
 print_eval(results)
 
 ############### Model Saving ###############

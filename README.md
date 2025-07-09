@@ -23,7 +23,7 @@ A lightweight, modular toolkit for compressing Large Language Models (LLMs) usin
     + RTN / GPTQ / AWQ / AWQ+ / SpinQuant algorithms
     + Per-tensor / Per-token / Per-channel / Per-block scaling options
 - ✅ Support **Profiling**
-    + Percentile(99%) / Max / Fake Quantized Max / SQNR for operations
+    + Percentile(99%) / Max / Fake Quantized Max / SQNR / Kurtosis for operations
 - ✅ **Plug-and-play integration** with Hugging Face Transformers
 - ✅ **Tinychat** with Compressed Instruct-model
 
@@ -127,11 +127,13 @@ model.prune(
 #### 4. Profile the Model
 
 ```python
-model.profile(
-    quant_config=args.quant_config,
-    device=device,
-    save_path=args.exp_dir,
-)
+if args.profile:
+    model.profile(
+        quant_config=args.quant_config,
+        device=device,
+        save_path=args.exp_dir,
+    )
+    args.qparser.disable_profile(args.quant_config)
 ```
 
 #### 5. Quantize the Model
@@ -155,14 +157,17 @@ model.quantize(
 #### 6. Evaluate the Model
 
 ```python
-evaluator = LMEvaluator(device=device)
+evaluator = LMEvaluator(
+    model=model, 
+    n_samples=128, 
+    is_check_sparsity=args.prune
+)
 eval_kwargs = {
     "tokenizer_path": args.model,
     "seq_len": args.seq_len,
     "batch_size": args.batch_size,
-    "check_sparsity": args.prune,
 }
-results = evaluator.eval(model, tasks=args.tasks, **eval_kwargs)
+results = evaluator.eval(tasks=args.tasks, **eval_kwargs)
 print_eval(results)
 ```
 

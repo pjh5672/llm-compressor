@@ -169,11 +169,10 @@ class CompressForCausalLM:
 
     def prune(self, tokenizer, prune_method, prune_config, device, **kwargs):
         if kwargs.get("prune"):
-            sparsity_ratio = prune_config.pop("sparsity_ratio")
+            sparsity_ratio = prune_config.get("sparsity_ratio")
 
             if prune_method == "magnitude":
                 magnitude(self, device, sparsity_ratio)
-                return
         else:
             return
 

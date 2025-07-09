@@ -264,7 +264,16 @@ if __name__ == "__main__":
             device=device,
             save_path=args.exp_dir,
         )
+        qparser.disable_profile(args.quant_config)
 
+    model.prune(
+        tokenizer=tokenizer,
+        prune_method=args.prune_method,
+        prune_config=args.prune_config,
+        device=device,
+        prune=args.prune,
+    )
+    
     quant_kwargs = {
         "n_samples": 128,
         "seq_len": 512,
@@ -280,7 +289,7 @@ if __name__ == "__main__":
     )
     # print(model)
 
-    evaluator = LMEvaluator(model=model, n_samples=128)
+    evaluator = LMEvaluator(model=model, n_samples=128, is_check_sparsity=True)
     eval_kwargs = {
         "tokenizer_path": model_path,
         "seq_len": 512,
