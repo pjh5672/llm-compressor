@@ -160,6 +160,7 @@ def update_weight(layer, device, block_size=128, percdamp=0.1, actorder=False):
     if isinstance(layer, transformers.Conv1D):
         W = W.t()
     W = W.float()
+    MASK = W != 0
 
     columns = W.shape[-1]
     group_size = layer.weight_quantizer.group_size
@@ -175,16 +176,20 @@ def update_weight(layer, device, block_size=128, percdamp=0.1, actorder=False):
         if group_size in (0, -1):
             perm = torch.argsort(torch.diag(H), descending=True)
             W = W[:, perm]
+            MASK = MASK[:, perm]
             H = H[perm][:, perm]
             invperm = torch.argsort(perm)
         else:
             N, K = W.shape
             W = W.reshape(N, K // group_size, group_size)
+            MASK = MASK.reshape(N, K // group_size, group_size)
             perm = torch.argsort(
                 torch.diag(H).reshape(-1, group_size).sum(-1), descending=True
             )
             W = W[:, perm, :]
             W = W.reshape(N, K)
+            MASK = MASK[:, perm, :]
+            MASK = MASK.reshape(N, K)
             # get scales, zeros for re-ordered W
             scales, zeros = layer.weight_quantizer.find_params(W)
             H = H.reshape(K // group_size, group_size, K // group_size, group_size)
@@ -218,6 +223,7 @@ def update_weight(layer, device, block_size=128, percdamp=0.1, actorder=False):
         count = i2 - i1
 
         W1 = W[:, i1:i2].clone()
+        MASK1 = W[:, i1:i2].clone()
         Q1 = torch.zeros_like(W1)
         Err1 = torch.zeros_like(W1)
         Hinv1 = Hinv[i1:i2, i1:i2]
@@ -225,10 +231,12 @@ def update_weight(layer, device, block_size=128, percdamp=0.1, actorder=False):
         if group_size in (0, -1):
             for i in range(count):
                 w = W1[:, i]
+                m = W1[:, i]
                 d = Hinv1[i, i]
                 q = layer.weight_quantizer(
                     w.unsqueeze(1), scales=scales, zeros=zeros
                 ).flatten()
+                q *= m
                 Q1[:, i] = q
                 err1 = (w - q) / d
                 W1[:, i:] -= err1.unsqueeze(1).matmul(Hinv1[i, i:].unsqueeze(0))
@@ -237,10 +245,12 @@ def update_weight(layer, device, block_size=128, percdamp=0.1, actorder=False):
             for i in range(0, count, group_size):
                 j = i1 + i
                 w = W1[:, i : i + group_size]
+                m = MASK1[:, i : i + group_size]
                 d = Hinv1[i : i + group_size, i : i + group_size]
                 s = scales[:, [j // group_size], :]
                 z = zeros[:, [j // group_size], :]
                 q = layer.weight_quantizer(w, scales=s, zeros=z)
+                q *= m
                 Q1[:, i : i + group_size] = q
                 err1 = (w - q) / torch.diag(d)
                 W1[:, i:] -= err1.matmul(Hinv1[i : i + group_size, i:])

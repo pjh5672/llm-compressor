@@ -29,19 +29,19 @@ A lightweight, modular toolkit for compressing Large Language Models (LLMs) usin
 
 ---
 
-## 🏗️ Supported Architectures
+## 🏗️ Supported Algorithms for SLMs
 
-| Model | Available Algorithms | Remark |
-| :---: | :---: | :---: |
-| OPT | RTN / GPTQ / AWQ / AWQ+ | - |
-| BLOOM | RTN / GPTQ / AWQ / AWQ+ | - |
-| Llama1 | RTN / GPTQ / AWQ / AWQ+ / SpinQuant | - |
-| Llama2 | RTN / GPTQ / AWQ / AWQ+ / SpinQuant | - |
-| Llama3.x | RTN / GPTQ / AWQ / AWQ+ / SpinQuant | - |
-| Phi1.5 | RTN / GPTQ / AWQ / AWQ+ | - |
-| Phi2 | RTN / GPTQ / AWQ / AWQ+ | - |
-| Qwen2.x | RTN / GPTQ / AWQ / AWQ+ | - |
-| Qwen3 | RTN / GPTQ / AWQ / AWQ+ | - |
+| Model | RTN | GPTQ | AWQ | AWQ+ | SpinQuant |
+| :---: | :---: | :---: | :---: | :---: | :---: |
+| OPT | ✅ | ✅ | ✅ | ✅ | ❌ | 
+| BLOOM | ✅ | ✅ | ✅ | ✅ | ❌ | 
+| Llama1 | ✅ | ✅ | ✅ | ✅ | ✅ | 
+| Llama2 | ✅ | ✅ | ✅ | ✅ | ✅ | 
+| Llama3.x | ✅ | ✅ | ✅ | ✅ | ✅ | 
+| Phi1.5 | ✅ | ✅ | ✅ | ✅ | ❌ | 
+| Phi2 | ✅ | ✅ | ✅ | ✅ | ❌ | 
+| Qwen2.x | ✅ | ✅ | ✅ | ✅ | ❌ | 
+| Qwen3 | ✅ | ✅ | ✅ | ✅ | ❌ | 
 
 ---
 

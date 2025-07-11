@@ -36,9 +36,9 @@ def rtn(model, device, mse=False, verbose=True):
 
         for name in subset:
             subset[name].weight_quantizer.mse = mse
-            subset[name].weight.data = subset[name].weight_quantizer(
-                subset[name].weight.data
-            )
+            W = subset[name].weight.data
+            MASK = W != 0 
+            subset[name].weight.data = subset[name].weight_quantizer(W) * MASK
             del subset[name].weight_quantizer
 
         layers[i] = layer.cpu()
