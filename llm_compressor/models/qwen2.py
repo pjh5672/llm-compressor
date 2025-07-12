@@ -77,10 +77,8 @@ class QuantQwen2Attention(Qwen2Attention):
         op_name = kwargs.get("op_name", None)
         save_path = kwargs.get("save_path", "./")
 
-        qk_quant_config = deepcopy(quant_config)
-        qk_quant_config.act_out["type"] = None
         self.qk_matmul = QMatmul(
-            qk_quant_config,
+            quant_config,
             axes=-1,
             op_name=f"{op_name}.qk_matmul",
             save_path=save_path,
