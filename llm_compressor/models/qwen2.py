@@ -162,7 +162,7 @@ class CompressQwen2ForCausalLM(Qwen2ForCausalLM, CompressForCausalLM):
     ):
         super().__init__(config)
 
-    def _prepare_attention_module(self, quant_config, save_path="./"):
+    def _prepare_qmodule(self, quant_config, save_path="./"):
         for name, module in self.named_modules():
             if isinstance(module, Qwen2Attention):
                 parent, child_name = name.rsplit(".", 1)

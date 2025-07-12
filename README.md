@@ -38,6 +38,9 @@ A lightweight, modular toolkit for compressing Large Language Models (LLMs) usin
 | Llama1 | ✅ | ✅ | ✅ | ✅ | ✅ | 
 | Llama2 | ✅ | ✅ | ✅ | ✅ | ✅ | 
 | Llama3.x | ✅ | ✅ | ✅ | ✅ | ✅ | 
+| Gemma | ✅ | ✅ | ✅ | ✅ | ❌ | 
+| Gemma2 | ✅ | ✅ | ✅ | ✅ | ❌ | 
+| Gemm3 | ✅ | ✅ | ✅ | ✅ | ❌ | 
 | Phi1.5 | ✅ | ✅ | ✅ | ✅ | ❌ | 
 | Phi2 | ✅ | ✅ | ✅ | ✅ | ❌ | 
 | Qwen2.x | ✅ | ✅ | ✅ | ✅ | ❌ | 

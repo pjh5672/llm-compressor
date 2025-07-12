@@ -29,3 +29,9 @@ huggingface-cli.exe download meta-llama/Llama-3.2-3B-Instruct --local-dir ./llam
 huggingface-cli.exe download Qwen/Qwen2.5-0.5B-Instruct --local-dir ./qwen2.5-0.5b-it
 huggingface-cli.exe download Qwen/Qwen3-1.7B --local-dir ./qwen3-1.7b
 huggingface-cli.exe download Qwen/Qwen3-4B --local-dir ./qwen3-4b
+
+# gemma 
+huggingface-cli.exe download google/gemma-2b-it --local-dir ./gemma-2b-it
+huggingface-cli.exe download google/gemma-2-2b-it --local-dir ./gemma-2-2b-it
+huggingface-cli.exe download google/gemma-3-1b-it --local-dir ./gemma-3-1b-it
+huggingface-cli.exe download google/gemma-3-4b-it --local-dir ./gemma-3-4b-it

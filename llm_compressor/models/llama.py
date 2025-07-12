@@ -148,7 +148,7 @@ class CompressLlamaForCausalLM(LlamaForCausalLM, CompressForCausalLM):
     ):
         super().__init__(config)
 
-    def _prepare_attention_module(self, quant_config, save_path="./"):
+    def _prepare_qmodule(self, quant_config, save_path="./"):
         for name, module in self.named_modules():
             if isinstance(module, LlamaAttention):
                 parent, child_name = name.rsplit(".", 1)

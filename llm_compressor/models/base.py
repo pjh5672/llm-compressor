@@ -30,7 +30,7 @@ from utils.module import (
 
 
 class CompressForCausalLM:
-    def _prepare_attention_module(self):
+    def _prepare_qmodule(self):
         raise NotImplementedError
 
     def save_compressed(self):
@@ -49,7 +49,7 @@ class CompressForCausalLM:
     def profile(self, quant_config, device, save_path="./", **kwargs):
         LOGGER.info("Profiling model...")
 
-        self._prepare_attention_module(
+        self._prepare_qmodule(
             quant_config=quant_config,
             save_path=save_path,
         )
@@ -96,7 +96,7 @@ class CompressForCausalLM:
 
     def quantize(self, tokenizer, quant_method, quant_config, device, **kwargs):
         if kwargs.get("quantize"):
-            self._prepare_attention_module(quant_config=quant_config)
+            self._prepare_qmodule(quant_config=quant_config)
 
             if quant_method == "rtn":
                 rtn(self, device, mse=True, verbose=True)

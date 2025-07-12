@@ -8,9 +8,11 @@ from torch import nn
 from transformers import AutoTokenizer
 from accelerate import init_empty_weights
 from transformers.cache_utils import Cache
-from transformers.models.phi.modeling_phi import (
-    PhiAttention,
-    PhiForCausalLM,
+from transformers.processing_utils import Unpack
+from transformers.modeling_flash_attention_utils import FlashAttentionKwargs
+from transformers.models.gemma3.modeling_gemma3 import (
+    Gemma3Attention,
+    Gemma3ForCausalLM,
     repeat_kv,
     apply_rotary_pos_emb,
 )
@@ -31,39 +33,44 @@ def eager_attention_forward(
     key: torch.Tensor,
     value: torch.Tensor,
     attention_mask: Optional[torch.Tensor],
-    scaling: float,
     dropout: float = 0.0,
+    scaling: Optional[float] = None,
+    softcap: Optional[float] = None,
     **kwargs,
 ):
     qk_matmul = kwargs.get("qk_matmul")
     sv_matmul = kwargs.get("sv_matmul")
 
+    if scaling is None:
+        scaling = module.head_dim**-0.5
+
     key_states = repeat_kv(key, module.num_key_value_groups)
     value_states = repeat_kv(value, module.num_key_value_groups)
 
     attn_weights = qk_matmul(query, key_states.transpose(2, 3)) * scaling
-    if attention_mask is not None:
+
+    if softcap is not None:
+        attn_weights = attn_weights / softcap
+        attn_weights = torch.tanh(attn_weights)
+        attn_weights = attn_weights * softcap
+    if attention_mask is not None:  # no matter the length, we just slice it
         causal_mask = attention_mask[:, :, :, : key_states.shape[-2]]
         attn_weights = attn_weights + causal_mask
 
-    attn_weights = nn.functional.softmax(attn_weights, dim=-1, dtype=torch.float32).to(
-        query.dtype
-    )
-    attn_weights = nn.functional.dropout(
-        attn_weights, p=dropout, training=module.training
-    )
+    # upcast attention to fp32
+    attn_weights = nn.functional.softmax(attn_weights, dim=-1, dtype=torch.float32).to(query.dtype)
+    attn_weights = nn.functional.dropout(attn_weights, p=dropout, training=module.training)
     attn_output = sv_matmul(attn_weights, value_states)
     attn_output = attn_output.transpose(1, 2).contiguous()
-
     return attn_output, attn_weights
 
 
-class QuantPhiAttention(PhiAttention):
+class QuantGemma3Attention(Gemma3Attention):
     """Multi-headed attention from 'Attention Is All You Need' paper"""
 
     def __init__(
         self,
-        attention: PhiAttention,
+        attention: Gemma3Attention,
         quant_config,
         **kwargs,
     ):
@@ -89,7 +96,9 @@ class QuantPhiAttention(PhiAttention):
         self.q_proj = attention.q_proj
         self.k_proj = attention.k_proj
         self.v_proj = attention.v_proj
-        self.dense = attention.dense
+        self.o_proj = attention.o_proj
+        self.attn_logit_softcapping = attention.attn_logit_softcapping
+        self.sliding_window = attention.sliding_window
 
     def forward(
         self,
@@ -98,7 +107,7 @@ class QuantPhiAttention(PhiAttention):
         attention_mask: Optional[torch.Tensor],
         past_key_value: Optional[Cache] = None,
         cache_position: Optional[torch.LongTensor] = None,
-        **kwargs,
+        **kwargs: Unpack[FlashAttentionKwargs],
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
         input_shape = hidden_states.shape[:-1]
         hidden_shape = (*input_shape, -1, self.head_dim)
@@ -107,55 +116,49 @@ class QuantPhiAttention(PhiAttention):
         key_states = self.k_proj(hidden_states).view(hidden_shape).transpose(1, 2)
         value_states = self.v_proj(hidden_states).view(hidden_shape).transpose(1, 2)
 
-        if self.qk_layernorm:
-            query_states = self.q_layernorm(query_states)
-            key_states = self.k_layernorm(key_states)
+        query_states = self.q_norm(query_states)
+        key_states = self.k_norm(key_states)
 
         cos, sin = position_embeddings
-        # Partial rotary embedding
-        query_rot, query_pass = (
-            query_states[..., : self.rotary_ndims],
-            query_states[..., self.rotary_ndims :],
+        query_states, key_states = apply_rotary_pos_emb(
+            query_states, key_states, cos, sin
         )
-        key_rot, key_pass = (
-            key_states[..., : self.rotary_ndims],
-            key_states[..., self.rotary_ndims :],
-        )
-        # [batch_size, seq_length, num_heads, head_dim // config.partial_rotary_factor]
-        query_rot, key_rot = apply_rotary_pos_emb(query_rot, key_rot, cos, sin)
-
-        # [batch_size, seq_length, num_heads, head_dim]
-        query_states = torch.cat((query_rot, query_pass), dim=-1)
-        key_states = torch.cat((key_rot, key_pass), dim=-1)
 
         if past_key_value is not None:
             # sin and cos are specific to RoPE models; cache_position needed for the static cache
-            cache_kwargs = {"sin": sin, "cos": cos, "cache_position": cache_position}
-            key_states, value_states = past_key_value.update(
-                key_states, value_states, self.layer_idx, cache_kwargs
-            )
+            cache_kwargs = {
+                "sin": sin,
+                "cos": cos,
+                "cache_position": cache_position,
+                "sliding_window": self.sliding_window,
+            }
+            key_states, value_states = past_key_value.update(key_states, value_states, self.layer_idx, cache_kwargs)
 
         attention_interface: Callable = eager_attention_forward
 
+        if attention_mask is not None:
+            # backwards compatibility
+            attention_mask = attention_mask.to(query_states)
         attn_output, attn_weights = attention_interface(
             self,
             query_states,
             key_states,
             value_states,
             attention_mask,
-            dropout=0.0 if not self.training else self.attention_dropout,
+            dropout=self.attention_dropout if self.training else 0.0,
             scaling=self.scaling,
+            sliding_window=self.sliding_window,
             qk_matmul=self.qk_matmul,
             sv_matmul=self.sv_matmul,
             **kwargs,
         )
 
         attn_output = attn_output.reshape(*input_shape, -1).contiguous()
-        attn_output = self.dense(attn_output)
+        attn_output = self.o_proj(attn_output)
         return attn_output, attn_weights
 
 
-class CompressPhiForCausalLM(PhiForCausalLM, CompressForCausalLM):
+class CompressGemma3ForCausalLM(Gemma3ForCausalLM, CompressForCausalLM):
     def __init__(
         self,
         config,
@@ -164,10 +167,10 @@ class CompressPhiForCausalLM(PhiForCausalLM, CompressForCausalLM):
 
     def _prepare_qmodule(self, quant_config, save_path="./"):
         for name, module in self.named_modules():
-            if isinstance(module, PhiAttention):
+            if isinstance(module, Gemma3Attention):
                 parent, child_name = name.rsplit(".", 1)
                 parent_module = dict(self.named_modules())[parent]
-                qattn = QuantPhiAttention(
+                qattn = QuantGemma3Attention(
                     attention=getattr(parent_module, child_name),
                     quant_config=quant_config.matmul,
                     op_name=name.replace("model.", ""),
@@ -208,7 +211,7 @@ class CompressPhiForCausalLM(PhiForCausalLM, CompressForCausalLM):
 
         with init_empty_weights():
             tokenizer = AutoTokenizer.from_pretrained(base_model_path)
-            base_model = PhiForCausalLM.from_pretrained(
+            base_model = Gemma3ForCausalLM.from_pretrained(
                 base_model_path, low_cpu_mem_usage=True
             )
 
@@ -216,7 +219,7 @@ class CompressPhiForCausalLM(PhiForCausalLM, CompressForCausalLM):
         for k, v in self.state_dict().items():
             compressed_sd[k] = v
 
-        PhiForCausalLM.save_pretrained(
+        Gemma3ForCausalLM.save_pretrained(
             base_model,
             local_save_path,
             state_dict=compressed_sd,
@@ -231,9 +234,9 @@ class CompressPhiForCausalLM(PhiForCausalLM, CompressForCausalLM):
         if mode == "true":
             return [
                 ["self_attn.q_proj", "self_attn.k_proj", "self_attn.v_proj"],
-                ["self_attn.dense"],
-                ["mlp.fc1"],
-                ["mlp.fc2"],
+                ["self_attn.o_proj"],
+                ["mlp.up_proj", "mlp.gate_proj"],
+                ["mlp.down_proj"],
             ]
         else:
             return [
@@ -241,9 +244,10 @@ class CompressPhiForCausalLM(PhiForCausalLM, CompressForCausalLM):
                     "self_attn.q_proj",
                     "self_attn.k_proj",
                     "self_attn.v_proj",
-                    "self_attn.dense",
-                    "mlp.fc1",
-                    "mlp.fc2",
+                    "self_attn.o_proj",
+                    "mlp.up_proj",
+                    "mlp.gate_proj",
+                    "mlp.down_proj",
                 ]
             ]
 
@@ -262,9 +266,9 @@ if __name__ == "__main__":
     qparser = QuantConfigParser(profile=args.profile)
     quant_config = qparser.build_cfg(args.weight, args.act_in, args.act_out, args.head)
 
-    model_path = "d:\\models\\phi-1.5"
+    model_path = "d:\\models\\gemma-3-1b-it"
     tokenizer = AutoTokenizer.from_pretrained(model_path)
-    model = CompressPhiForCausalLM.from_pretrained(
+    model = CompressGemma3ForCausalLM.from_pretrained(
         model_path,
         attn_implementation="eager",
         torch_dtype=torch.bfloat16,
@@ -277,6 +281,15 @@ if __name__ == "__main__":
             device=device,
             save_path=args.exp_dir,
         )
+        qparser.disable_profile(args.quant_config)
+
+    model.prune(
+        tokenizer=tokenizer,
+        prune_method=args.prune_method,
+        prune_config=args.prune_config,
+        device=device,
+        prune=args.prune,
+    )
 
     quant_kwargs = {
         "n_samples": 128,
@@ -291,9 +304,9 @@ if __name__ == "__main__":
         quantize=args.quantize,
         **quant_kwargs,
     )
-    print(model)
+    # print(model)
 
-    evaluator = LMEvaluator(model=model, n_samples=128)
+    evaluator = LMEvaluator(model=model, n_samples=128, is_check_sparsity=True)
     eval_kwargs = {
         "tokenizer_path": model_path,
         "seq_len": 512,
