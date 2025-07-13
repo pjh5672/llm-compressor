@@ -5,9 +5,7 @@ from pathlib import Path
 import torch
 from tqdm import tqdm
 from lm_eval import models, evaluator
-from accelerate import dispatch_model
 from lm_eval.tasks import TaskManager, get_task_dict
-from accelerate.utils import infer_auto_device_map, get_balanced_memory
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -19,24 +17,21 @@ from utils.module import check_sparsity  # noqa: E402
 
 
 class LMEvaluator:
-    def __init__(self, model, n_samples=None, is_check_sparsity=False):
+    def __init__(self, model, device, n_samples=None):
         # Move the model to GPUs (as much as possible) for LM evaluation
         if model.config.tie_word_embeddings:
             model.tie_weights()
 
-        if is_check_sparsity:
-            check_sparsity(model, torch.device("cuda:0"))
-
-        mem_kwargs = {"max_memory": get_balanced_memory(model)}
-        device_map = infer_auto_device_map(
-            model=model, no_split_module_classes=model._no_split_modules, **mem_kwargs
-        )
-        self.tokenizer_path = model.config._name_or_path.rstrip(os.sep)
-        self.model = dispatch_model(model, device_map=device_map)
+        self.device = device
         self.n_samples = n_samples
+        self.model = model.to(device)
+        self.tokenizer_path = model.config._name_or_path.rstrip(os.sep)
 
     def eval(self, tasks, **kwargs):
         LOGGER.info("Evaluating compressed model...")
+
+        if kwargs.get("check_sparsity", False):
+            check_sparsity(self.model, self.device)
 
         results = {}
         tasks = tasks.split(",")

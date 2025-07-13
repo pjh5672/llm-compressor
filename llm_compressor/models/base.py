@@ -48,7 +48,7 @@ class CompressForCausalLM:
     @torch.inference_mode()
     def profile(self, quant_config, device, save_path="./", **kwargs):
         LOGGER.info("Profiling model...")
-
+        mse = kwargs.get("mse", False)
         self._prepare_qmodule(
             quant_config=quant_config,
             save_path=save_path,
@@ -65,18 +65,15 @@ class CompressForCausalLM:
             subset = find_layers(layer)
 
             for name in subset:
-                subset[name].weight.data = subset[name].weight_quantizer(
-                    subset[name].weight.data
-                )
-                del subset[name].weight_quantizer
+                subset[name].weight_quantizer.mse = mse
+                subset[name].weight_quantizer(subset[name].weight.data)
 
             layers[i] = layer.cpu()
             del layer
 
         self.lm_head.to(device)
-        self.lm_head.weight.data = self.lm_head.weight_quantizer(
-            self.lm_head.weight.data
-        )
+        self.lm_head.weight_quantizer.mse = mse
+        self.lm_head.weight_quantizer(self.lm_head.weight.data)
         self.lm_head.cpu()
         del self.lm_head.weight_quantizer
 

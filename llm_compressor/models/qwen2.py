@@ -1,7 +1,6 @@
 import os
 import sys
 from pathlib import Path
-from copy import deepcopy
 from typing import Callable, Optional, Tuple
 
 import torch
@@ -294,9 +293,8 @@ if __name__ == "__main__":
     )
     # print(model)
 
-    evaluator = LMEvaluator(model=model, n_samples=128)
+    evaluator = LMEvaluator(model=model, device=device, n_samples=128)
     eval_kwargs = {
-        "tokenizer_path": model_path,
         "seq_len": 512,
         "batch_size": 1,
     }

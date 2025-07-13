@@ -58,8 +58,12 @@ def eager_attention_forward(
         attn_weights = attn_weights + causal_mask
 
     # upcast attention to fp32
-    attn_weights = nn.functional.softmax(attn_weights, dim=-1, dtype=torch.float32).to(query.dtype)
-    attn_weights = nn.functional.dropout(attn_weights, p=dropout, training=module.training)
+    attn_weights = nn.functional.softmax(attn_weights, dim=-1, dtype=torch.float32).to(
+        query.dtype
+    )
+    attn_weights = nn.functional.dropout(
+        attn_weights, p=dropout, training=module.training
+    )
     attn_output = sv_matmul(attn_weights, value_states)
     attn_output = attn_output.transpose(1, 2).contiguous()
     return attn_output, attn_weights
@@ -132,7 +136,9 @@ class QuantGemma3Attention(Gemma3Attention):
                 "cache_position": cache_position,
                 "sliding_window": self.sliding_window,
             }
-            key_states, value_states = past_key_value.update(key_states, value_states, self.layer_idx, cache_kwargs)
+            key_states, value_states = past_key_value.update(
+                key_states, value_states, self.layer_idx, cache_kwargs
+            )
 
         attention_interface: Callable = eager_attention_forward
 
@@ -306,9 +312,8 @@ if __name__ == "__main__":
     )
     # print(model)
 
-    evaluator = LMEvaluator(model=model, n_samples=128, is_check_sparsity=True)
+    evaluator = LMEvaluator(model=model, device=device, n_samples=128)
     eval_kwargs = {
-        "tokenizer_path": model_path,
         "seq_len": 512,
         "batch_size": 1,
     }
