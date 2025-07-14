@@ -75,7 +75,6 @@ class CompressForCausalLM:
         self.lm_head.weight_quantizer.mse = mse
         self.lm_head.weight_quantizer(self.lm_head.weight.data)
         self.lm_head.cpu()
-        del self.lm_head.weight_quantizer
 
         cleanup_memory(verbose=False)
         self.config.use_cache = use_cache
@@ -86,14 +85,15 @@ class CompressForCausalLM:
         testdata = load_dataset("wikitext", "wikitext-2-raw-v1", split="test")
         testenc = tokenizer("\n\n".join(testdata["text"]), return_tensors="pt")
 
-        batch = testenc.input_ids[:, :512]
+        batch = testenc.input_ids[:, :256]
         self(batch.to(self.device))
-        LOGGER.info("Profiling complete. (The process will be exit.)")
-        sys.exit(0)
+        LOGGER.info("Profiling complete.")
+        # sys.exit(0)
 
     def quantize(self, tokenizer, quant_method, quant_config, device, **kwargs):
         if kwargs.get("quantize"):
-            self._prepare_qmodule(quant_config=quant_config)
+            mixed_precision = kwargs.get("mixed_precision")
+            self._prepare_qmodule(quant_config=quant_config, mixed_precision=mixed_precision)
 
             if quant_method == "rtn":
                 rtn(self, device, mse=True, verbose=True)

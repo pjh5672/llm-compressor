@@ -1,6 +1,7 @@
 import os
 import sys
 from pathlib import Path
+from copy import deepcopy
 from typing import Callable, Optional, Tuple
 
 import torch
@@ -75,15 +76,24 @@ class QuantLlamaAttention(LlamaAttention):
         )
         op_name = kwargs.get("op_name", None)
         save_path = kwargs.get("save_path", "./")
+        mixed_precision = kwargs.get("mixed_precision", None)
+
+        qk_matmul_config = sv_matmul_config = quant_config
+        if mixed_precision is not None:
+            for lname in mixed_precision.layers:
+                if f"{op_name}.qk_matmul" == lname:
+                    qk_matmul_config = mixed_precision.layers[lname]
+                elif f"{op_name}.sv_matmul" == lname:
+                    sv_matmul_config = mixed_precision.layers[lname]
 
         self.qk_matmul = QMatmul(
-            quant_config,
+            qk_matmul_config,
             axes=-1,
             op_name=f"{op_name}.qk_matmul",
             save_path=save_path,
         )
         self.sv_matmul = QMatmul(
-            quant_config,
+            sv_matmul_config,
             axes=-2,
             op_name=f"{op_name}.sv_matmul",
             save_path=save_path,
@@ -148,7 +158,9 @@ class CompressLlamaForCausalLM(LlamaForCausalLM, CompressForCausalLM):
     ):
         super().__init__(config)
 
-    def _prepare_qmodule(self, quant_config, save_path="./"):
+    def _prepare_qmodule(self, quant_config, save_path="./", **kwargs):
+        mixed_precision = kwargs.get("mixed_precision")
+
         for name, module in self.named_modules():
             if isinstance(module, LlamaAttention):
                 parent, child_name = name.rsplit(".", 1)
@@ -158,6 +170,7 @@ class CompressLlamaForCausalLM(LlamaForCausalLM, CompressForCausalLM):
                     quant_config=quant_config.matmul,
                     op_name=name.replace("model.", ""),
                     save_path=save_path,
+                    mixed_precision=mixed_precision,
                 )
                 setattr(parent_module, child_name, qattn)
 
@@ -168,9 +181,15 @@ class CompressLlamaForCausalLM(LlamaForCausalLM, CompressForCausalLM):
                 if "lm_head" not in name:
                     parent, child_name = name.rsplit(".", 1)
                     parent_module = dict(self.named_modules())[parent]
+                    quant_config_linear = quant_config.linear
+                    if mixed_precision is not None:
+                        for lname in mixed_precision.layers:
+                            if op_name == lname:
+                                quant_config_linear = mixed_precision.layers[lname]
+                    
                     qlinear = QLinear(
                         linear=getattr(parent_module, child_name),
-                        quant_config=quant_config.linear,
+                        quant_config=quant_config_linear,
                         dtype=self.dtype,
                         op_name=op_name,
                         save_path=save_path,
@@ -274,11 +293,22 @@ if __name__ == "__main__":
         prune=args.prune,
     )
 
+    # qparser.get_4_to_8bit_config([
+    #     "layers.0.self_attn.q_proj.weight"
+    # ])
+    # qparser.get_org_config([
+    #     "layers.1.self_attn.v_proj.input",
+    #     "layers.1.self_attn.o_proj.output",
+    #     "layers.1.self_attn.qk_matmul.output",
+    #     "layers.1.self_attn.sv_matmul.input"
+    # ])
     quant_kwargs = {
         "n_samples": 128,
         "seq_len": 512,
         "rotation_path": args.rotation_path,
+        "mixed_precision": qparser.mpq,
     }
+
     model.quantize(
         tokenizer=tokenizer,
         quant_method=args.quant_method,
