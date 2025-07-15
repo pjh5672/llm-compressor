@@ -24,6 +24,7 @@ A lightweight, modular toolkit for compressing Large Language Models (LLMs) usin
     + Per-tensor / Per-token / Per-channel / Per-block scaling options
 - ✅ **Model Profiling**
     + Percentile(99%) / Max / Fake Quantized Max / SQNR for operations
+- ✅ Support **Mixed-Precision Quantization(MPQ)**
 - ✅ **Plug-and-play integration** with Hugging Face Transformers
 - ✅ **Tinychat** with Compressed Instruct-model
 
