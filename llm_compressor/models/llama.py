@@ -186,7 +186,7 @@ class CompressLlamaForCausalLM(LlamaForCausalLM, CompressForCausalLM):
                         for lname in mixed_precision.layers:
                             if op_name == lname:
                                 quant_config_linear = mixed_precision.layers[lname]
-                    
+
                     qlinear = QLinear(
                         linear=getattr(parent_module, child_name),
                         quant_config=quant_config_linear,
@@ -293,15 +293,6 @@ if __name__ == "__main__":
         prune=args.prune,
     )
 
-    # qparser.get_4_to_8bit_config([
-    #     "layers.0.self_attn.q_proj.weight"
-    # ])
-    # qparser.get_org_config([
-    #     "layers.1.self_attn.v_proj.input",
-    #     "layers.1.self_attn.o_proj.output",
-    #     "layers.1.self_attn.qk_matmul.output",
-    #     "layers.1.self_attn.sv_matmul.input"
-    # ])
     quant_kwargs = {
         "n_samples": 128,
         "seq_len": 512,

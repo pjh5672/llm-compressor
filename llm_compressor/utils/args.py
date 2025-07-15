@@ -147,17 +147,15 @@ class QuantConfigParser:
         quant_config.head["act_in"]["is_profile"] = True
         quant_config.head["act_out"]["is_profile"] = True
 
-    def get_4_to_8bit_config(self, layer_names):
+    def register_4_to_8bit_config(self, layer_names):
         for name in layer_names:
             if "weight" in name:
                 linear_config = deepcopy(self.linear)
                 fmt = linear_config["weight"]["format"]
                 linear_config["weight"]["format"] = fmt.replace("4", "8")
-                self.mpq.layers.update(
-                    {name.rstrip(".weight"): linear_config}
-                )
+                self.mpq.layers.update({name.rstrip(".weight"): linear_config})
 
-    def get_org_config(self, layer_names):
+    def register_org_config(self, layer_names):
         for name in layer_names:
             if "matmul" in name:
                 matmul_config = deepcopy(self.matmul)
@@ -167,35 +165,28 @@ class QuantConfigParser:
                     if m_name in self.mpq.layers:
                         matmul_config = self.mpq.layers[m_name]
                     matmul_config["act_in"]["type"] = None
-                    self.mpq.layers.update(
-                        {m_name: matmul_config}
-                    )
+                    self.mpq.layers.update({m_name: matmul_config})
                 elif "output" in name:
                     m_name = name.rstrip(".output")
                     if m_name in self.mpq.layers:
                         matmul_config = self.mpq.layers[m_name]
                     matmul_config["act_out"]["type"] = None
-                    self.mpq.layers.update(
-                        {m_name: matmul_config}
-                    )
+                    self.mpq.layers.update({m_name: matmul_config})
             else:
                 linear_config = deepcopy(self.linear)
+
                 if "input" in name:
                     m_name = name.rstrip(".input")
                     if m_name in self.mpq.layers:
                         linear_config = self.mpq.layers[m_name]
                     linear_config["act_in"]["type"] = None
-                    self.mpq.layers.update(
-                        {m_name: linear_config}
-                    )
+                    self.mpq.layers.update({m_name: linear_config})
                 elif "output" in name:
                     m_name = name.rstrip(".output")
                     if m_name in self.mpq.layers:
                         linear_config = self.mpq.layers[m_name]
                     linear_config["act_out"]["type"] = None
-                    self.mpq.layers.update(
-                        {m_name: linear_config}
-                    )
+                    self.mpq.layers.update({m_name: linear_config})
 
 
 def build_parser(root_dir):

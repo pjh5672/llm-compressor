@@ -93,7 +93,9 @@ class CompressForCausalLM:
     def quantize(self, tokenizer, quant_method, quant_config, device, **kwargs):
         if kwargs.get("quantize"):
             mixed_precision = kwargs.get("mixed_precision")
-            self._prepare_qmodule(quant_config=quant_config, mixed_precision=mixed_precision)
+            self._prepare_qmodule(
+                quant_config=quant_config, mixed_precision=mixed_precision
+            )
 
             if quant_method == "rtn":
                 rtn(self, device, mse=True, verbose=True)

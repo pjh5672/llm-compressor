@@ -73,15 +73,24 @@ class QuantPhiAttention(PhiAttention):
         )
         op_name = kwargs.get("op_name", None)
         save_path = kwargs.get("save_path", "./")
+        mixed_precision = kwargs.get("mixed_precision", None)
+
+        qk_matmul_config = sv_matmul_config = quant_config
+        if mixed_precision is not None:
+            for lname in mixed_precision.layers:
+                if f"{op_name}.qk_matmul" == lname:
+                    qk_matmul_config = mixed_precision.layers[lname]
+                elif f"{op_name}.sv_matmul" == lname:
+                    sv_matmul_config = mixed_precision.layers[lname]
 
         self.qk_matmul = QMatmul(
-            quant_config,
+            qk_matmul_config,
             axes=-1,
             op_name=f"{op_name}.qk_matmul",
             save_path=save_path,
         )
         self.sv_matmul = QMatmul(
-            quant_config,
+            sv_matmul_config,
             axes=-2,
             op_name=f"{op_name}.sv_matmul",
             save_path=save_path,
@@ -162,7 +171,9 @@ class CompressPhiForCausalLM(PhiForCausalLM, CompressForCausalLM):
     ):
         super().__init__(config)
 
-    def _prepare_qmodule(self, quant_config, save_path="./"):
+    def _prepare_qmodule(self, quant_config, save_path="./", **kwargs):
+        mixed_precision = kwargs.get("mixed_precision")
+
         for name, module in self.named_modules():
             if isinstance(module, PhiAttention):
                 parent, child_name = name.rsplit(".", 1)
@@ -172,6 +183,7 @@ class CompressPhiForCausalLM(PhiForCausalLM, CompressForCausalLM):
                     quant_config=quant_config.matmul,
                     op_name=name.replace("model.", ""),
                     save_path=save_path,
+                    mixed_precision=mixed_precision,
                 )
                 setattr(parent_module, child_name, qattn)
 
@@ -182,9 +194,15 @@ class CompressPhiForCausalLM(PhiForCausalLM, CompressForCausalLM):
                 if "lm_head" not in name:
                     parent, child_name = name.rsplit(".", 1)
                     parent_module = dict(self.named_modules())[parent]
+                    quant_config_linear = quant_config.linear
+                    if mixed_precision is not None:
+                        for lname in mixed_precision.layers:
+                            if op_name == lname:
+                                quant_config_linear = mixed_precision.layers[lname]
+
                     qlinear = QLinear(
                         linear=getattr(parent_module, child_name),
-                        quant_config=quant_config.linear,
+                        quant_config=quant_config_linear,
                         dtype=self.dtype,
                         op_name=op_name,
                         save_path=save_path,
@@ -277,6 +295,7 @@ if __name__ == "__main__":
             device=device,
             save_path=args.exp_dir,
         )
+        qparser.disable_profile(args.quant_config)
 
     quant_kwargs = {
         "n_samples": 128,
