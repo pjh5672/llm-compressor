@@ -4,8 +4,8 @@
 python examples/llama.py \
     --model d:\\models\\llama-3.2-1b-it \
     --exp llama-prune-eval \
-    --seq-len 512 \
-    --task ppl,mmlu \
+    --seq-len 2048 \
+    --task ppl \
     --device 0
     
 python examples/llama.py \
@@ -13,9 +13,9 @@ python examples/llama.py \
     --exp llama-prune-eval \
     --prune \
     --prune-method magnitude \
-    --sparsity 0.5 \
-    --seq-len 512 \
-    --task ppl,mmlu \
+    --sparsity 0.3 \
+    --seq-len 2048 \
+    --task ppl \
     --device 0
 
 ####################################################################
@@ -24,8 +24,8 @@ python examples/llama.py \
 python examples/llama.py \
     --model d:\\models\\llama-3.2-3b-it \
     --exp llama-prune-eval \
-    --seq-len 512 \
-    --task ppl,mmlu \
+    --seq-len 2048 \
+    --task ppl \
     --device 0
     
 python examples/llama.py \
@@ -33,7 +33,7 @@ python examples/llama.py \
     --exp llama-prune-eval \
     --prune \
     --prune-method magnitude \
-    --sparsity 0.5 \
-    --seq-len 512 \
-    --task ppl,mmlu \
+    --sparsity 0.3 \
+    --seq-len 2048 \
+    --task ppl \
     --device 0

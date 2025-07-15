@@ -275,7 +275,7 @@ if __name__ == "__main__":
     qparser = QuantConfigParser(profile=args.profile)
     quant_config = qparser.build_cfg(args.weight, args.act_in, args.act_out, args.head)
 
-    model_path = "d:\\models\\qwen3-1.7b"
+    model_path = "d:\\models\\qwen3-4b"
     tokenizer = AutoTokenizer.from_pretrained(model_path)
     model = CompressQwen3ForCausalLM.from_pretrained(
         model_path,

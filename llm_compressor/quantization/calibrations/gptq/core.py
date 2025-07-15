@@ -223,7 +223,7 @@ def update_weight(layer, device, block_size=128, percdamp=0.1, actorder=False):
         count = i2 - i1
 
         W1 = W[:, i1:i2].clone()
-        MASK1 = W[:, i1:i2].clone()
+        MASK1 = MASK[:, i1:i2].clone()
         Q1 = torch.zeros_like(W1)
         Err1 = torch.zeros_like(W1)
         Hinv1 = Hinv[i1:i2, i1:i2]
@@ -231,7 +231,7 @@ def update_weight(layer, device, block_size=128, percdamp=0.1, actorder=False):
         if group_size in (0, -1):
             for i in range(count):
                 w = W1[:, i]
-                m = W1[:, i]
+                m = MASK1[:, i]
                 d = Hinv1[i, i]
                 q = layer.weight_quantizer(
                     w.unsqueeze(1), scales=scales, zeros=zeros

@@ -64,7 +64,7 @@ def find_layers(module, layers=(nn.Conv2d, nn.Linear), name=""):
     return res
 
 
-def check_sparsity(model, device):
+def check_sparsity(model):
     LOGGER.info("Checking model sparsity...")
 
     use_cache = model.config.use_cache
@@ -79,7 +79,7 @@ def check_sparsity(model, device):
         pg_bar.set_description(s)
         LOGGER.debug(s)
 
-        layer = layers[i].to(device)
+        layer = layers[i]
         subset = find_layers(layer)
 
         sub_count = 0
@@ -88,18 +88,15 @@ def check_sparsity(model, device):
             W = subset[name].weight.data
             count += (W == 0).sum().item()
             total_params += W.numel()
-
             sub_count += (W == 0).sum().item()
             sub_params += W.numel()
 
         LOGGER.debug(f"Layer {i} sparsity : {float(sub_count) / sub_params:.4f}")
-
-        layers[i] = layer.cpu()
         del layer
         cleanup_memory(verbose=False)
 
     model.config.use_cache = use_cache
-    print(f"Model sparsity : {float(count) / total_params:.4f}")
+    LOGGER.info(f"Model sparsity : {float(count) / total_params:.4f}")
     return
 
 

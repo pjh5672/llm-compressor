@@ -7,7 +7,7 @@
 
 #### PPL Evaluation
 
-| Model | BF16 | Magnitude<sub>(sparsity 50%) |
+| Model | BF16 | Magnitude<sub>(sparsity 30%) |
 | :---: | :---: | :---: |
 | OPT-125M | 42.1965 | 188.4160 |
 | OPT-350M | 34.2866 | 138.6100 |
@@ -26,7 +26,7 @@
 
 #### MMLU (5-shot) Evaluation
 
-| Model | BF16 | Magnitude<sub>(sparsity 50%)|
+| Model | BF16 | Magnitude<sub>(sparsity 30%)|
 | :---: | :---: | :---: |
 | OPT-125M | 26.1760 | 23.7950 |
 | OPT-350M | 25.8275 | 22.8078 |

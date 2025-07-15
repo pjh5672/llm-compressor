@@ -22,7 +22,6 @@ class LMEvaluator:
         if model.config.tie_word_embeddings:
             model.tie_weights()
 
-        self.device = device
         self.n_samples = n_samples
         self.model = model.to(device)
         self.tokenizer_path = model.config._name_or_path.rstrip(os.sep)
@@ -31,7 +30,7 @@ class LMEvaluator:
         LOGGER.info("Evaluating compressed model...")
 
         if kwargs.get("check_sparsity", False):
-            check_sparsity(self.model, self.device)
+            check_sparsity(self.model)
 
         results = {}
         tasks = tasks.split(",")
@@ -97,9 +96,7 @@ class LMEvaluator:
         results = {}
         for task in tasks:
             try:
-                num_fewshot = 0
-                if task == "mmlu":
-                    num_fewshot = 5
+                num_fewshot = 5 if task == "mmlu" else 0
                 acc = self.compute_zeroshot(
                     model=model,
                     task=task,

@@ -1,17 +1,17 @@
 #!/bin/bash
 
 # bf16 model
-python examples/phi.py \
-    --model d:\\models\\phi-1.5 \
-    --exp phi2-quant-eval \
+python examples/gemma3.py \
+    --model d:\\models\\gemma-3-1b-it \
+    --exp gemma3-quant-eval \
     --seq-len 2048 \
     --task ppl \
     --device 0
     
 # W4A8 G128 symmetric RTN quant.
-python examples/phi.py \
-    --model d:\\models\\phi-1.5 \
-    --exp phi2-quant-eval \
+python examples/gemma3.py \
+    --model d:\\models\\gemma-3-1b-it \
+    --exp gemma3-quant-eval \
     --quantize \
     --quant-method rtn \
     --weight int4-g[128]-rw \
@@ -21,9 +21,9 @@ python examples/phi.py \
     --device 0
 
 # W4A8 G128 symmetric GPTQ quant.
-python examples/phi.py \
-    --model d:\\models\\phi-1.5 \
-    --exp phi2-quant-eval \
+python examples/gemma3.py \
+    --model d:\\models\\gemma-3-1b-it \
+    --exp gemma3-quant-eval \
     --quantize \
     --quant-method gptq \
     --weight int4-g[128]-rw \
@@ -33,9 +33,9 @@ python examples/phi.py \
     --device 0
 
 # W4A8 G128 symmetric AWQ quant.
-python examples/phi.py \
-    --model d:\\models\\phi-1.5 \
-    --exp phi2-quant-eval \
+python examples/gemma3.py \
+    --model d:\\models\\gemma-3-1b-it \
+    --exp gemma3-quant-eval \
     --quantize \
     --quant-method awq \
     --weight int4-g[128]-rw \
@@ -45,9 +45,9 @@ python examples/phi.py \
     --device 0
 
 # W4A8 G128 symmetric AWQ quant.
-python examples/phi.py \
-    --model d:\\models\\phi-1.5 \
-    --exp phi2-quant-eval \
+python examples/gemma3.py \
+    --model d:\\models\\gemma-3-1b-it \
+    --exp gemma3-quant-eval \
     --quantize \
     --quant-method awq_plus \
     --weight int4-g[128]-rw \
@@ -56,22 +56,20 @@ python examples/phi.py \
     --task ppl \
     --device 0
 
+##############################################################################
 
-#############################################################
-
-
-bf16 model
-python examples/phi.py \
-    --model d:\\models\\phi-2 \
-    --exp phi2-quant-eval \
+# bf16 model
+python examples/gemma3.py \
+    --model d:\\models\\gemma-3-4b-it \
+    --exp gemma3-quant-eval \
     --seq-len 2048 \
     --task ppl \
     --device 0
     
 # W4A8 G128 symmetric RTN quant.
-python examples/phi.py \
-    --model d:\\models\\phi-2 \
-    --exp phi2-quant-eval \
+python examples/gemma3.py \
+    --model d:\\models\\gemma-3-4b-it \
+    --exp gemma3-quant-eval \
     --quantize \
     --quant-method rtn \
     --weight int4-g[128]-rw \
@@ -80,10 +78,10 @@ python examples/phi.py \
     --task ppl \
     --device 0
 
-W4A8 G128 symmetric GPTQ quant.
-python examples/phi.py \
-    --model d:\\models\\phi-2 \
-    --exp phi2-quant-eval \
+# W4A8 G128 symmetric GPTQ quant.
+python examples/gemma3.py \
+    --model d:\\models\\gemma-3-4b-it \
+    --exp gemma3-quant-eval \
     --quantize \
     --quant-method gptq \
     --weight int4-g[128]-rw \
@@ -93,9 +91,9 @@ python examples/phi.py \
     --device 0
 
 # W4A8 G128 symmetric AWQ quant.
-python examples/phi.py \
-    --model d:\\models\\phi-2 \
-    --exp phi2-quant-eval \
+python examples/gemma3.py \
+    --model d:\\models\\gemma-3-4b-it \
+    --exp gemma3-quant-eval \
     --quantize \
     --quant-method awq \
     --weight int4-g[128]-rw \
@@ -105,9 +103,9 @@ python examples/phi.py \
     --device 0
 
 # W4A8 G128 symmetric AWQ quant.
-python examples/phi.py \
-    --model d:\\models\\phi-2 \
-    --exp phi2-quant-eval \
+python examples/gemma3.py \
+    --model d:\\models\\gemma-3-4b-it \
+    --exp gemma3-quant-eval \
     --quantize \
     --quant-method awq_plus \
     --weight int4-g[128]-rw \
