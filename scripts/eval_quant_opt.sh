@@ -4,7 +4,7 @@
 python examples/opt.py \
     --model d:\\models\\opt-125m \
     --exp opt-quant-eval \
-    --seq-len 2048 \
+    --seq-len 512 \
     --task ppl \
     --device 0
     
@@ -16,7 +16,7 @@ python examples/opt.py \
     --quant-method rtn \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
-    --seq-len 2048 \
+    --seq-len 512 \
     --task ppl \
     --device 0
 
@@ -28,7 +28,7 @@ python examples/opt.py \
     --quant-method gptq \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
-    --seq-len 2048 \
+    --seq-len 512 \
     --task ppl \
     --device 0
 
@@ -40,7 +40,7 @@ python examples/opt.py \
     --quant-method awq \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
-    --seq-len 2048 \
+    --seq-len 512 \
     --task ppl \
     --device 0
 
@@ -52,7 +52,7 @@ python examples/opt.py \
     --quant-method awq_plus \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
-    --seq-len 2048 \
+    --seq-len 512 \
     --task ppl \
     --device 0
 
@@ -64,7 +64,7 @@ python examples/opt.py \
 python examples/opt.py \
     --model d:\\models\\opt-350m \
     --exp opt-quant-eval \
-    --seq-len 2048 \
+    --seq-len 512 \
     --task ppl \
     --device 0
     
@@ -76,7 +76,7 @@ python examples/opt.py \
     --quant-method rtn \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
-    --seq-len 2048 \
+    --seq-len 512 \
     --task ppl \
     --device 0
 
@@ -88,7 +88,7 @@ python examples/opt.py \
     --quant-method gptq \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
-    --seq-len 2048 \
+    --seq-len 512 \
     --task ppl \
     --device 0
 
@@ -100,7 +100,7 @@ python examples/opt.py \
     --quant-method awq \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
-    --seq-len 2048 \
+    --seq-len 512 \
     --task ppl \
     --device 0
 
@@ -112,7 +112,7 @@ python examples/opt.py \
     --quant-method awq_plus \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
-    --seq-len 2048 \
+    --seq-len 512 \
     --task ppl \
     --device 0
 
@@ -124,7 +124,7 @@ python examples/opt.py \
 python examples/opt.py \
     --model d:\\models\\opt-1.3b \
     --exp opt-quant-eval \
-    --seq-len 2048 \
+    --seq-len 512 \
     --task ppl \
     --device 0
     
@@ -136,7 +136,7 @@ python examples/opt.py \
     --quant-method rtn \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
-    --seq-len 2048 \
+    --seq-len 512 \
     --task ppl \
     --device 0
 
@@ -148,7 +148,7 @@ python examples/opt.py \
     --quant-method gptq \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
-    --seq-len 2048 \
+    --seq-len 512 \
     --task ppl \
     --device 0
 
@@ -160,7 +160,7 @@ python examples/opt.py \
     --quant-method awq \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
-    --seq-len 2048 \
+    --seq-len 512 \
     --task ppl \
     --device 0
 
@@ -172,6 +172,6 @@ python examples/opt.py \
     --quant-method awq_plus \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
-    --seq-len 2048 \
+    --seq-len 512 \
     --task ppl \
     --device 0

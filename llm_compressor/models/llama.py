@@ -1,7 +1,6 @@
 import os
 import sys
 from pathlib import Path
-from copy import deepcopy
 from typing import Callable, Optional, Tuple
 
 import torch
@@ -235,7 +234,7 @@ class CompressLlamaForCausalLM(LlamaForCausalLM, CompressForCausalLM):
     def get_sequential(self, mode="true"):
         if mode == "true":
             return [
-                ["self_attn.q_proj", "self_attn.k_proj", "self_attn.v_proj"],
+                ["self_attn.k_proj", "self_attn.v_proj", "self_attn.q_proj"],
                 ["self_attn.o_proj"],
                 ["mlp.up_proj", "mlp.gate_proj"],
                 ["mlp.down_proj"],
@@ -243,9 +242,9 @@ class CompressLlamaForCausalLM(LlamaForCausalLM, CompressForCausalLM):
         else:
             return [
                 [
-                    "self_attn.q_proj",
                     "self_attn.k_proj",
                     "self_attn.v_proj",
+                    "self_attn.q_proj",
                     "self_attn.o_proj",
                     "mlp.up_proj",
                     "mlp.gate_proj",
@@ -284,14 +283,6 @@ if __name__ == "__main__":
             save_path=args.exp_dir,
         )
         qparser.disable_profile(args.quant_config)
-
-    model.prune(
-        tokenizer=tokenizer,
-        prune_method=args.prune_method,
-        prune_config=args.prune_config,
-        device=device,
-        prune=args.prune,
-    )
 
     quant_kwargs = {
         "n_samples": 128,

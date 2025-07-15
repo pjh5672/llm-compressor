@@ -257,7 +257,7 @@ class CompressGemma3ForCausalLM(Gemma3ForCausalLM, CompressForCausalLM):
     def get_sequential(self, mode="true"):
         if mode == "true":
             return [
-                ["self_attn.q_proj", "self_attn.k_proj", "self_attn.v_proj"],
+                ["self_attn.k_proj", "self_attn.v_proj", "self_attn.q_proj"],
                 ["self_attn.o_proj"],
                 ["mlp.up_proj", "mlp.gate_proj"],
                 ["mlp.down_proj"],
@@ -265,9 +265,9 @@ class CompressGemma3ForCausalLM(Gemma3ForCausalLM, CompressForCausalLM):
         else:
             return [
                 [
-                    "self_attn.q_proj",
                     "self_attn.k_proj",
                     "self_attn.v_proj",
+                    "self_attn.q_proj",
                     "self_attn.o_proj",
                     "mlp.up_proj",
                     "mlp.gate_proj",

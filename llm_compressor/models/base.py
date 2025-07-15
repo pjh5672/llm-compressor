@@ -21,6 +21,8 @@ from quantization.calibrations.awq.core import awq  # noqa: E402
 from quantization.calibrations.gptq.core import gptq  # noqa: E402
 from quantization.calibrations.awq_plus.core import awq_plus  # noqa: E402
 from quantization.calibrations.spinquant.core import spinquant  # noqa: E402
+from quantization.calibrations.smoothquant.core import smoothquant  # noqa: E402
+from quantization.calibrations.gptaq.core import gptaq  # noqa: E402
 from utils.module import (
     text_to_token_ids,
     token_ids_to_text,
@@ -88,90 +90,121 @@ class CompressForCausalLM:
         batch = testenc.input_ids[:, :256]
         self(batch.to(self.device))
         LOGGER.info("Profiling complete.")
-        # sys.exit(0)
 
     def quantize(self, tokenizer, quant_method, quant_config, device, **kwargs):
         if kwargs.get("quantize"):
-            mixed_precision = kwargs.get("mixed_precision")
-            self._prepare_qmodule(
-                quant_config=quant_config, mixed_precision=mixed_precision
-            )
+            try:
+                mixed_precision = kwargs.get("mixed_precision")
+                self._prepare_qmodule(
+                    quant_config=quant_config, mixed_precision=mixed_precision
+                )
 
-            if quant_method == "rtn":
-                rtn(self, device, mse=True, verbose=True)
+                if quant_method == "rtn":
+                    rtn(self, device, mse=True, verbose=True)
 
-            elif quant_method == "awq":
-                n_samples = kwargs.get("n_samples", 128)
-                seq_len = kwargs.get("seq_len", 2048)
-                awq(
-                    self,
-                    device,
-                    tokenizer,
-                    n_samples=n_samples,
-                    seq_len=seq_len,
-                    verbose=True,
-                )
-            elif quant_method == "gptq":
-                n_samples = kwargs.get("n_samples", 128)
-                seq_len = kwargs.get("seq_len", 2048)
-                gptq(
-                    self,
-                    device,
-                    n_samples=n_samples,
-                    seq_len=seq_len,
-                    mse=True,
-                    verbose=True,
-                )
-            elif quant_method == "awq_plus":
-                n_samples = kwargs.get("n_samples", 128)
-                seq_len = kwargs.get("seq_len", 2048)
-                awq_plus(
-                    self,
-                    device,
-                    tokenizer,
-                    n_samples=n_samples,
-                    seq_len=seq_len,
-                    verbose=True,
-                )
-            elif quant_method == "spinquant-opt":
-                n_samples = kwargs.get("n_samples", 128)
-                seq_len = kwargs.get("seq_len", 2048)
-                rotation_path = kwargs.get("rotation_path", "./")
-                spinquant(
-                    self,
-                    device,
-                    mode="optimize",
-                    n_samples=n_samples,
-                    seq_len=seq_len,
-                    mse=True,
-                    verbose=True,
-                    quant_config=quant_config,
-                    rotation_path=rotation_path,
-                )
-            elif quant_method == "spinquant-had":
-                n_samples = kwargs.get("n_samples", 128)
-                seq_len = kwargs.get("seq_len", 2048)
-                rotation_path = kwargs.get("rotation_path")
-                spinquant(
-                    self,
-                    device,
-                    mode="hadamard",
-                    n_samples=n_samples,
-                    seq_len=seq_len,
-                    mse=True,
-                    verbose=True,
-                    quant_config=quant_config,
-                    rotation_path=rotation_path,
-                )
+                elif quant_method == "smoothquant":
+                    n_samples = kwargs.get("n_samples", 128)
+                    seq_len = kwargs.get("seq_len", 2048)
+                    smoothquant(
+                        self,
+                        device,
+                        tokenizer,
+                        n_samples=n_samples,
+                        seq_len=seq_len,
+                        verbose=True,
+                    )
+                elif quant_method == "awq":
+                    n_samples = kwargs.get("n_samples", 128)
+                    seq_len = kwargs.get("seq_len", 2048)
+                    awq(
+                        self,
+                        device,
+                        tokenizer,
+                        n_samples=n_samples,
+                        seq_len=seq_len,
+                        verbose=True,
+                    )
+                elif quant_method == "gptq":
+                    n_samples = kwargs.get("n_samples", 128)
+                    seq_len = kwargs.get("seq_len", 2048)
+                    gptq(
+                        self,
+                        device,
+                        n_samples=n_samples,
+                        seq_len=seq_len,
+                        mse=True,
+                        verbose=True,
+                    )
+                elif quant_method == "awq_plus":
+                    n_samples = kwargs.get("n_samples", 128)
+                    seq_len = kwargs.get("seq_len", 2048)
+                    awq_plus(
+                        self,
+                        device,
+                        tokenizer,
+                        n_samples=n_samples,
+                        seq_len=seq_len,
+                        verbose=True,
+                    )
+                elif quant_method == "spinquant-opt":
+                    n_samples = kwargs.get("n_samples", 128)
+                    seq_len = kwargs.get("seq_len", 2048)
+                    rotation_path = kwargs.get("rotation_path", "./")
+                    spinquant(
+                        self,
+                        device,
+                        mode="optimize",
+                        n_samples=n_samples,
+                        seq_len=seq_len,
+                        mse=True,
+                        verbose=True,
+                        quant_config=quant_config,
+                        rotation_path=rotation_path,
+                    )
+                elif quant_method == "spinquant-had":
+                    n_samples = kwargs.get("n_samples", 128)
+                    seq_len = kwargs.get("seq_len", 2048)
+                    rotation_path = kwargs.get("rotation_path")
+                    spinquant(
+                        self,
+                        device,
+                        mode="hadamard",
+                        n_samples=n_samples,
+                        seq_len=seq_len,
+                        mse=True,
+                        verbose=True,
+                        quant_config=quant_config,
+                        rotation_path=rotation_path,
+                    )
+                elif quant_method == "gptaq":
+                    n_samples = kwargs.get("n_samples", 128)
+                    seq_len = kwargs.get("seq_len", 2048)
+                    gptaq(
+                        self,
+                        device,
+                        n_samples=n_samples,
+                        seq_len=seq_len,
+                        mse=True,
+                        verbose=True,
+                    )
+            except Exception as e:
+                LOGGER.error(e)
+                raise
+
         else:
             return
 
     def prune(self, tokenizer, prune_method, prune_config, device, **kwargs):
         if kwargs.get("prune"):
-            sparsity_ratio = prune_config.get("sparsity_ratio")
+            try:
+                sparsity_ratio = prune_config.get("sparsity_ratio")
 
-            if prune_method == "magnitude":
-                magnitude(self, device, sparsity_ratio)
+                if prune_method == "magnitude":
+                    magnitude(self, device, sparsity_ratio)
+
+            except Exception as e:
+                LOGGER.error(e)
+                raise
         else:
             return
 

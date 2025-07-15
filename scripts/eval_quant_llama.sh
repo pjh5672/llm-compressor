@@ -4,7 +4,7 @@
 python examples/llama.py \
     --model d:\\models\\llama-3.2-1b-it \
     --exp llama-quant-eval \
-    --seq-len 2048 \
+    --seq-len 512 \
     --task ppl \
     --device 0
     
@@ -16,7 +16,7 @@ python examples/llama.py \
     --quant-method rtn \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
-    --seq-len 2048 \
+    --seq-len 512 \
     --task ppl \
     --device 0
 
@@ -28,7 +28,7 @@ python examples/llama.py \
     --quant-method gptq \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
-    --seq-len 2048 \
+    --seq-len 512 \
     --task ppl \
     --device 0
 
@@ -40,7 +40,7 @@ python examples/llama.py \
     --quant-method awq \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
-    --seq-len 2048 \
+    --seq-len 512 \
     --task ppl \
     --device 0
 
@@ -52,7 +52,7 @@ python examples/llama.py \
     --quant-method awq_plus \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
-    --seq-len 2048 \
+    --seq-len 512 \
     --task ppl \
     --device 0
 
@@ -64,7 +64,7 @@ python examples/llama.py \
     --quant-method spinquant-had \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
-    --seq-len 2048 \
+    --seq-len 512 \
     --task ppl \
     --device 0
 
@@ -75,7 +75,7 @@ python examples/llama.py \
 python examples/llama.py \
     --model d:\\models\\llama-3.2-3b-it \
     --exp llama-quant-eval \
-    --seq-len 2048 \
+    --seq-len 512 \
     --task ppl \
     --device 0
     
@@ -87,7 +87,7 @@ python examples/llama.py \
     --quant-method rtn \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
-    --seq-len 2048 \
+    --seq-len 512 \
     --task ppl \
     --device 0
 
@@ -99,7 +99,7 @@ python examples/llama.py \
     --quant-method gptq \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
-    --seq-len 2048 \
+    --seq-len 512 \
     --task ppl \
     --device 0
 
@@ -111,7 +111,7 @@ python examples/llama.py \
     --quant-method awq \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
-    --seq-len 2048 \
+    --seq-len 512 \
     --task ppl \
     --device 0
 
@@ -123,7 +123,7 @@ python examples/llama.py \
     --quant-method awq_plus \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
-    --seq-len 2048 \
+    --seq-len 512 \
     --task ppl \
     --device 0
 
@@ -135,6 +135,6 @@ python examples/llama.py \
     --quant-method spinquant-had \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
-    --seq-len 2048 \
+    --seq-len 512 \
     --task ppl \
     --device 0

@@ -17,12 +17,13 @@ from utils.general import LOGGER  # noqa: E402
 from utils.dataset import get_loaders  # noqa: E402
 from utils.torch_utils import cleanup_memory  # noqa: E402
 from utils.module import find_layers  # noqa: E402
+from quantization.calibrations.gptaq.model_utils import FPInputsCache  # noqa: E402
 
 
 @torch.no_grad()
-def gptq(model, device, n_samples=512, seq_len=2048, mse=False, verbose=True):
+def gptaq(model, device, n_samples=512, seq_len=2048, mse=False, verbose=True):
     if verbose:
-        LOGGER.info("Updating model... [Quant-method : GPTQ]")
+        LOGGER.info("Updating model... [Quant-method : GPTAQ]")
 
     use_cache = model.config.use_cache
     model.config.use_cache = False
@@ -76,6 +77,9 @@ def gptq(model, device, n_samples=512, seq_len=2048, mse=False, verbose=True):
     outs = torch.zeros_like(inps)
     cleanup_memory(verbose=False)
 
+    fp_inputs_cache = FPInputsCache(sequential)
+    fp_inps = inps.clone()
+
     pg_bar = tqdm(range(len(layers)), leave=verbose)
     for i in pg_bar:
         s = f"Updating layer.{i:02}..."
@@ -85,6 +89,11 @@ def gptq(model, device, n_samples=512, seq_len=2048, mse=False, verbose=True):
 
         layer = layers[i].to(device)
         full = find_layers(layer)
+
+        fp_inputs_cache.add_hook(full)
+        for j in range(n_samples):
+            fp_inps[j] = layer(fp_inps[j].unsqueeze(0), **layer_kwargs)[0]
+        fp_inputs_cache.clear_hook()
 
         for names in sequential:
             subset = {n: full[n] for n in names}
@@ -96,8 +105,12 @@ def gptq(model, device, n_samples=512, seq_len=2048, mse=False, verbose=True):
                 subset[name].weight_quantizer.H = torch.zeros(
                     (columns, columns), device=device
                 )
+                subset[name].weight_quantizer.dXXT = torch.zeros(
+                    (columns, columns), device=device
+                )
+                subset[name].fp_inp = fp_inputs_cache.fp_cache[name]
 
-            def cache_hessian_weight(m, x, y):
+            def cache_hessian_dxxt_weight(m, x, y):
                 x = x[0]
                 x = x.detach()
                 if len(x.shape) == 2:
@@ -111,17 +124,27 @@ def gptq(model, device, n_samples=512, seq_len=2048, mse=False, verbose=True):
                 m.weight_quantizer.H *= m.weight_quantizer.nsamples / (
                     m.weight_quantizer.nsamples + tmp
                 )
+                m.weight_quantizer.dXXT *= m.weight_quantizer.nsamples / (
+                    m.weight_quantizer.nsamples + tmp
+                )
                 m.weight_quantizer.nsamples += tmp
                 inp = math.sqrt(2 / m.weight_quantizer.nsamples) * x.float()
                 m.weight_quantizer.H += inp.matmul(inp.t())
+                dX = math.sqrt(2 / m.weight_quantizer.nsamples) * m.fp_inp[0].float() - inp
+                m.weight_quantizer.dXXT += dX.matmul(inp.t())
+                del m.fp_inp[0]
 
-            handles = []
-            for name in subset:
-                handles.append(subset[name].register_forward_hook(cache_hessian_weight))
+            first_module_name = list(subset.keys())[0]
+            handle = subset[first_module_name].register_forward_hook(cache_hessian_dxxt_weight)
             for j in range(n_samples):
                 layer(inps[j].unsqueeze(0), **layer_kwargs)
-            for h in handles:
-                h.remove()
+            handle.remove()
+
+            # copy H and dXXT
+            for name in subset:
+                if name != first_module_name:
+                    subset[name].weight_quantizer.H = subset[first_module_name].weight_quantizer.H
+                    subset[name].weight_quantizer.dXXT = subset[first_module_name].weight_quantizer.dXXT
 
             for name in subset:
                 update_weight(
@@ -130,6 +153,7 @@ def gptq(model, device, n_samples=512, seq_len=2048, mse=False, verbose=True):
                     block_size=128,
                     percdamp=0.01,
                     actorder=True,
+                    alpha=0.25,
                 )
                 del subset[name].weight_quantizer
 
@@ -156,7 +180,7 @@ def gptq(model, device, n_samples=512, seq_len=2048, mse=False, verbose=True):
     return
 
 
-def update_weight(layer, device, block_size=128, percdamp=0.1, actorder=False):
+def update_weight(layer, device, block_size=128, percdamp=0.1, actorder=False, alpha=0.25):
     W = layer.weight.data.clone()
     if isinstance(layer, transformers.Conv1D):
         W = W.t()
@@ -167,10 +191,12 @@ def update_weight(layer, device, block_size=128, percdamp=0.1, actorder=False):
     group_size = layer.weight_quantizer.group_size
 
     H = layer.weight_quantizer.H
-    del layer.weight_quantizer.H
+    dXXT = layer.weight_quantizer.dXXT
+    del layer.weight_quantizer.H, layer.weight_quantizer.dXXT
     dead = torch.diag(H) == 0
     H[dead, dead] = 1
     W[:, dead] = 0
+    dXXT[:, dead] = 0
 
     scales, zeros = layer.weight_quantizer.find_params(W)
     if actorder:
@@ -179,6 +205,7 @@ def update_weight(layer, device, block_size=128, percdamp=0.1, actorder=False):
             W = W[:, perm]
             MASK = MASK[:, perm]
             H = H[perm][:, perm]
+            dXXT = dXXT[perm][:, perm]
         else:
             N, K = W.shape
             W = W.reshape(N, K // group_size, group_size)
@@ -195,6 +222,9 @@ def update_weight(layer, device, block_size=128, percdamp=0.1, actorder=False):
             H = H.reshape(K // group_size, group_size, K // group_size, group_size)
             H = H[perm][..., perm, :]
             H = H.reshape(K, K)
+            dXXT = dXXT.reshape(K // group_size, group_size, K // group_size, group_size)
+            dXXT = dXXT[perm][..., perm, :]
+            dXXT = dXXT.reshape(K, K)
 
         invperm = torch.argsort(perm)
 
@@ -219,6 +249,10 @@ def update_weight(layer, device, block_size=128, percdamp=0.1, actorder=False):
     H = torch.linalg.cholesky(H, upper=True)
     Hinv = H
 
+    # scale it by alpha due to collection of dXXT and H
+    P = alpha * ((dXXT @ Hinv.T).triu_(diagonal=1)) @ Hinv
+    del dXXT
+
     for i1 in range(0, columns, block_size):
         i2 = min(i1 + block_size, columns)
         count = i2 - i1
@@ -228,6 +262,7 @@ def update_weight(layer, device, block_size=128, percdamp=0.1, actorder=False):
         Q1 = torch.zeros_like(W1)
         Err1 = torch.zeros_like(W1)
         Hinv1 = Hinv[i1:i2, i1:i2]
+        P1 = P[i1:i2, i1:i2]
 
         if group_size in (0, -1):
             for i in range(count):
@@ -240,7 +275,7 @@ def update_weight(layer, device, block_size=128, percdamp=0.1, actorder=False):
                 q *= m
                 Q1[:, i] = q
                 err1 = (w - q) / d
-                W1[:, i:] -= err1.unsqueeze(1).matmul(Hinv1[i, i:].unsqueeze(0))
+                W1[:, i:] -= err1.unsqueeze(1).matmul(Hinv1[i, i:].unsqueeze(0)) - w.unsqueeze(1).matmul(P1[i, i:].unsqueeze(0))
                 Err1[:, i] = err1
         else:
             for i in range(0, count, group_size):
@@ -254,11 +289,11 @@ def update_weight(layer, device, block_size=128, percdamp=0.1, actorder=False):
                 q *= m
                 Q1[:, i : i + group_size] = q
                 err1 = (w - q) / torch.diag(d)
-                W1[:, i:] -= err1.matmul(Hinv1[i : i + group_size, i:])
+                W1[:, i:] -= err1.matmul(Hinv1[i : i + group_size, i:]) - w.matmul(P1[i : i + group_size, i:])
                 Err1[:, i : i + group_size] = err1
 
         Q[:, i1:i2] = Q1
-        W[:, i2:] -= Err1.matmul(Hinv[i1:i2, i2:])
+        W[:, i2:] -= Err1.matmul(Hinv[i1:i2, i2:]) - W1.matmul(P[i1:i2, i2:])
 
     if actorder:
         if group_size in (0, -1):

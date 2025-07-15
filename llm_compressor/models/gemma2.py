@@ -85,7 +85,7 @@ class QuantGemma2Attention(Gemma2Attention):
         op_name = kwargs.get("op_name", None)
         save_path = kwargs.get("save_path", "./")
         mixed_precision = kwargs.get("mixed_precision", None)
-        
+
         qk_matmul_config = sv_matmul_config = quant_config
         if mixed_precision is not None:
             for lname in mixed_precision.layers:
@@ -252,7 +252,7 @@ class CompressGemma2ForCausalLM(Gemma2ForCausalLM, CompressForCausalLM):
     def get_sequential(self, mode="true"):
         if mode == "true":
             return [
-                ["self_attn.q_proj", "self_attn.k_proj", "self_attn.v_proj"],
+                ["self_attn.k_proj", "self_attn.v_proj", "self_attn.q_proj"],
                 ["self_attn.o_proj"],
                 ["mlp.up_proj", "mlp.gate_proj"],
                 ["mlp.down_proj"],
@@ -260,9 +260,9 @@ class CompressGemma2ForCausalLM(Gemma2ForCausalLM, CompressForCausalLM):
         else:
             return [
                 [
-                    "self_attn.q_proj",
                     "self_attn.k_proj",
                     "self_attn.v_proj",
+                    "self_attn.q_proj",
                     "self_attn.o_proj",
                     "mlp.up_proj",
                     "mlp.gate_proj",

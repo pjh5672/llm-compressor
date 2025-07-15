@@ -248,7 +248,7 @@ class CompressPhiForCausalLM(PhiForCausalLM, CompressForCausalLM):
     def get_sequential(self, mode="true"):
         if mode == "true":
             return [
-                ["self_attn.q_proj", "self_attn.k_proj", "self_attn.v_proj"],
+                ["self_attn.k_proj", "self_attn.v_proj", "self_attn.q_proj"],
                 ["self_attn.dense"],
                 ["mlp.fc1"],
                 ["mlp.fc2"],
@@ -256,9 +256,9 @@ class CompressPhiForCausalLM(PhiForCausalLM, CompressForCausalLM):
         else:
             return [
                 [
-                    "self_attn.q_proj",
                     "self_attn.k_proj",
                     "self_attn.v_proj",
+                    "self_attn.q_proj",
                     "self_attn.dense",
                     "mlp.fc1",
                     "mlp.fc2",

@@ -20,7 +20,7 @@ A lightweight, modular toolkit for compressing Large Language Models (LLMs) usin
     + INT / FP / MX / NVFP4 format
     + 4-bit / 8-bit Fake quantizer support
     + Symmetric / Asymmetric quantization
-    + RTN / GPTQ / AWQ / AWQ+ / SpinQuant algorithms
+    + RTN / SmoothQuant / GPTQ / AWQ / AWQ+ / SpinQuant / GPTAQ algorithms
     + Per-tensor / Per-token / Per-channel / Per-block scaling options
 - ✅ **Model Profiling**
     + Percentile(99%) / Max / Fake Quantized Max / SQNR for operations

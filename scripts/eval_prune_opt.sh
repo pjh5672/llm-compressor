@@ -4,7 +4,7 @@
 python examples/opt.py \
     --model d:\\models\\opt-125m \
     --exp opt-prune-eval \
-    --seq-len 2048 \
+    --seq-len 512 \
     --task ppl \
     --device 0
     
@@ -14,7 +14,7 @@ python examples/opt.py \
     --prune \
     --prune-method magnitude \
     --sparsity 0.3 \
-    --seq-len 2048 \
+    --seq-len 512 \
     --task ppl \
     --device 0
 
@@ -24,7 +24,7 @@ python examples/opt.py \
 python examples/opt.py \
     --model d:\\models\\opt-350m \
     --exp opt-prune-eval \
-    --seq-len 2048 \
+    --seq-len 512 \
     --task ppl \
     --device 0
     
@@ -34,7 +34,7 @@ python examples/opt.py \
     --prune \
     --prune-method magnitude \
     --sparsity 0.3 \
-    --seq-len 2048 \
+    --seq-len 512 \
     --task ppl \
     --device 0
 
@@ -44,7 +44,7 @@ python examples/opt.py \
 python examples/opt.py \
     --model d:\\models\\opt-1.3b \
     --exp opt-prune-eval \
-    --seq-len 2048 \
+    --seq-len 512 \
     --task ppl \
     --device 0
     
@@ -55,6 +55,6 @@ python examples/opt.py \
     --prune \
     --prune-method magnitude \
     --sparsity 0.3 \
-    --seq-len 2048 \
+    --seq-len 512 \
     --task ppl \
     --device 0

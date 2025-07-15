@@ -9,6 +9,9 @@ from transformers.models.phi.modeling_phi import PhiDecoderLayer
 from transformers.models.llama.modeling_llama import LlamaDecoderLayer, LlamaRMSNorm
 from transformers.models.qwen2.modeling_qwen2 import Qwen2DecoderLayer, Qwen2RMSNorm
 from transformers.models.qwen3.modeling_qwen3 import Qwen3DecoderLayer, Qwen3RMSNorm
+from transformers.models.gemma.modeling_gemma import GemmaDecoderLayer, GemmaRMSNorm
+from transformers.models.gemma2.modeling_gemma2 import Gemma2DecoderLayer, Gemma2RMSNorm
+from transformers.models.gemma3.modeling_gemma3 import Gemma3DecoderLayer, Gemma3RMSNorm
 
 PATH = Path(__file__).resolve().parents[3]
 if str(PATH) not in sys.path:
@@ -204,7 +207,15 @@ def auto_scale_block(module, module_kwargs, input_feat, **kwargs):
             )
         )
 
-    elif isinstance(module, (LlamaDecoderLayer, Qwen2DecoderLayer, Qwen3DecoderLayer)):
+    elif isinstance(
+        module,
+        (
+            LlamaDecoderLayer,
+            Qwen2DecoderLayer,
+            Qwen3DecoderLayer,
+            GemmaDecoderLayer,
+        ),
+    ):
         # attention input
         scales_list.append(
             _auto_get_scale(
@@ -277,6 +288,48 @@ def auto_scale_block(module, module_kwargs, input_feat, **kwargs):
                 inp=input_feat["mlp.fc1"],
             )
         )
+    elif isinstance(module, Gemma2DecoderLayer, Gemma3DecoderLayer):
+        # attention input
+        scales_list.append(
+            _auto_get_scale(
+                prev_op=module.input_layernorm,
+                layers=[
+                    module.self_attn.q_proj,
+                    module.self_attn.k_proj,
+                    module.self_attn.v_proj,
+                ],
+                inp=input_feat["self_attn.q_proj"],
+                module2inspect=module.self_attn,
+                kwargs=module_kwargs,
+            )
+        )
+        # attn out
+        # Please refer to https://github.com/mit-han-lab/llm-awq/pull/67#issue-1850622696
+        if module.self_attn.v_proj.weight.shape == module.self_attn.o_proj.weight.shape:
+            scales_list.append(
+                _auto_get_scale(
+                    prev_op=module.self_attn.v_proj,
+                    layers=[module.self_attn.o_proj],
+                    inp=input_feat["self_attn.o_proj"],
+                )
+            )
+        # fc1
+        scales_list.append(
+            _auto_get_scale(
+                prev_op=module.pre_feedforward_layernorm,
+                layers=[module.mlp.gate_proj, module.mlp.up_proj],
+                inp=input_feat["mlp.gate_proj"],
+                module2inspect=module.mlp,
+            )
+        )
+        # fc2
+        scales_list.append(
+            _auto_get_scale(
+                prev_op=module.mlp.up_proj,
+                layers=[module.mlp.down_proj],
+                inp=input_feat["mlp.down_proj"],
+            )
+        )
     else:
         raise NotImplementedError(f"{type(module)} not supported yet!")
 
@@ -297,7 +350,16 @@ def apply_scale(module, scales_list, device, input_feat_dict=None):
             assert len(layers) == 1
             scale_fc_fc(prev_op, layers[0], scales)
         elif isinstance(
-            prev_op, (nn.LayerNorm, LlamaRMSNorm, Qwen2RMSNorm, Qwen3RMSNorm)
+            prev_op,
+            (
+                nn.LayerNorm,
+                LlamaRMSNorm,
+                Qwen2RMSNorm,
+                Qwen3RMSNorm,
+                GemmaRMSNorm,
+                Gemma2RMSNorm,
+                Gemma3RMSNorm,
+            ),
         ):
             scale_ln_fcs(prev_op, layers, scales)
         else:

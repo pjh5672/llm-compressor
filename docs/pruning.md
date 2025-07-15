@@ -5,40 +5,45 @@
 - Wanda
 - RIA
 
+### 🤖 API Usage
+
+```python
+tokenizer = AutoTokenizer.from_pretrained(args.model)
+model = CompressLlamaForCausalLM.from_pretrained(
+    args.model,
+    attn_implementation="eager",
+    torch_dtype=torch.bfloat16,
+    device_map="cpu",
+)
+
+model.prune(
+    tokenizer=tokenizer,
+    prune_method=args.prune_method,
+    prune_config=args.prune_config,
+    device=device,
+    prune=args.prune,
+)
+```
+
 #### PPL Evaluation
 
 | Model | BF16 | Magnitude<sub>(sparsity 30%) |
 | :---: | :---: | :---: |
-| OPT-125M | 42.1965 | 188.4160 |
-| OPT-350M | 34.2866 | 138.6100 |
-| OPT-1.7B | 21.9675 | 3939.7100 |
-| BLOOM-560M | 35.7978 | 105.9660 |
-| BLOOM-1.1B | 25.0659 | 42.2235 |
-| BLOOM-1.7B | 21.4909 | 52.9753 |
-| BLOOM-3B | 18.9668 | 29.6493 |
-| Phi-1.5 | 33.1104 | 74.7208 |
-| Phi-2.0 | 13.6094 | 33.5035 |
-| Qwen-2.5-0.5B-Instruct | 19.1299 | 687.4390 |
-| Qwen-3.0-1.7B | 21.8734 | 342.6800 |
-| Qwen-3.0-4B | 18.1153 | 82.2200 |
-| Llama-3.2-1B-Instruct | 19.0228 | 1306.41 |
-| Llama-3.2-3B-Instruct | 15.8560 | 145.1370 |
-
-#### MMLU (5-shot) Evaluation
-
-| Model | BF16 | Magnitude<sub>(sparsity 30%)|
-| :---: | :---: | :---: |
-| OPT-125M | 26.1760 | 23.7950 |
-| OPT-350M | 25.8275 | 22.8078 |
-| OPT-1.7B | 24.3612 | 24.2886 |
-| BLOOM-560M | 23.4175 | 23.7079 |
-| BLOOM-1.1B | 26.4954 | 24.6225 |
-| BLOOM-1.7B | 27.0616 | 25.8130 |
-| BLOOM-3B | 26.6841 | 27.1341 |
-| Phi-1.5 | 43.5540 | 29.1957 |
-| Phi-2.0 | 57.9849 | 43.4524 |
-| Qwen-2.5-0.5B-Instruct | 48.6208 | 24.3467 |
-| Qwen-3.0-1.7B | 62.8339 | 23.4321 |
-| Qwen-3.0-4B | 72.8659 | 28.1940 |
-| Llama-3.2-1B-Instruct | 46.2689 | 25.2323 |
-| Llama-3.2-3B-Instruct | 60.6272 | 24.8403 |
+| OPT-125M | 42.1965 | 51.5627 |
+| OPT-350M | 34.2866 | 42.0008 |
+| OPT-1.3B | 21.9675 | 34.9381 |
+| BLOOM-560M | 35.7978 | 41.2604 |
+| BLOOM-1.1B | 25.0659 | 27.2390 |
+| BLOOM-1.7B | 21.4909 | 23.3717 |
+| BLOOM-3B | 18.9668 | 19.8218 |
+| Phi-1.5 | 33.1104 | 37.4572 |
+| Phi-2.0 | 13.6094 | 15.6271 |
+| Gemma-2B-Instruct | 307.1260 | 316.1830 |
+| Gemma-2-2B-Instruct | 29.5611 | 49.8580 |
+| Gemma-3-1B-Instruct | 61.1776 | 123.1650 |
+| Gemma-3-4B-Instruct | 64.0732 | 99.6258 |
+| Qwen-2.5-0.5B-Instruct | 19.1299 | 31.7231 |
+| Qwen-3.0-1.7B | 21.8734 | 34.2607 |
+| Qwen-3.0-4B | 18.1153 | 18.4853 |
+| Llama-3.2-1B-Instruct | 19.0228 | 33.8913 |
+| Llama-3.2-3B-Instruct | 15.8560 | 22.1732 |

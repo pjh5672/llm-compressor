@@ -4,7 +4,7 @@
 python examples/gemma3.py \
     --model d:\\models\\gemma-3-1b-it \
     --exp gemma3-quant-eval \
-    --seq-len 2048 \
+    --seq-len 512 \
     --task ppl \
     --device 0
     
@@ -16,7 +16,7 @@ python examples/gemma3.py \
     --quant-method rtn \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
-    --seq-len 2048 \
+    --seq-len 512 \
     --task ppl \
     --device 0
 
@@ -28,7 +28,7 @@ python examples/gemma3.py \
     --quant-method gptq \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
-    --seq-len 2048 \
+    --seq-len 512 \
     --task ppl \
     --device 0
 
@@ -40,7 +40,7 @@ python examples/gemma3.py \
     --quant-method awq \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
-    --seq-len 2048 \
+    --seq-len 512 \
     --task ppl \
     --device 0
 
@@ -52,7 +52,7 @@ python examples/gemma3.py \
     --quant-method awq_plus \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
-    --seq-len 2048 \
+    --seq-len 512 \
     --task ppl \
     --device 0
 
@@ -62,7 +62,7 @@ python examples/gemma3.py \
 python examples/gemma3.py \
     --model d:\\models\\gemma-3-4b-it \
     --exp gemma3-quant-eval \
-    --seq-len 2048 \
+    --seq-len 512 \
     --task ppl \
     --device 0
     
@@ -74,7 +74,7 @@ python examples/gemma3.py \
     --quant-method rtn \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
-    --seq-len 2048 \
+    --seq-len 512 \
     --task ppl \
     --device 0
 
@@ -86,7 +86,7 @@ python examples/gemma3.py \
     --quant-method gptq \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
-    --seq-len 2048 \
+    --seq-len 512 \
     --task ppl \
     --device 0
 
@@ -98,7 +98,7 @@ python examples/gemma3.py \
     --quant-method awq \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
-    --seq-len 2048 \
+    --seq-len 512 \
     --task ppl \
     --device 0
 
@@ -110,6 +110,6 @@ python examples/gemma3.py \
     --quant-method awq_plus \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
-    --seq-len 2048 \
+    --seq-len 512 \
     --task ppl \
     --device 0

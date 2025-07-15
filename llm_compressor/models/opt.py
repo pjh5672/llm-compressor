@@ -241,7 +241,7 @@ class CompressOPTForCausalLM(OPTForCausalLM, CompressForCausalLM):
     def get_sequential(self, mode="true"):
         if mode == "true":
             return [
-                ["self_attn.q_proj", "self_attn.k_proj", "self_attn.v_proj"],
+                ["self_attn.k_proj", "self_attn.v_proj", "self_attn.q_proj"],
                 ["self_attn.out_proj"],
                 ["fc1"],
                 ["fc2"],
@@ -249,9 +249,9 @@ class CompressOPTForCausalLM(OPTForCausalLM, CompressForCausalLM):
         else:
             return [
                 [
-                    "self_attn.q_proj",
                     "self_attn.k_proj",
                     "self_attn.v_proj",
+                    "self_attn.q_proj",
                     "self_attn.out_proj",
                     "fc1",
                     "fc2",

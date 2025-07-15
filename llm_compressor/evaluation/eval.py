@@ -66,7 +66,8 @@ class LMEvaluator:
 
             except Exception as e:
                 ppl[f"ppl.{dataset}"] = sys.maxsize
-                raise e
+                LOGGER.error(e)
+                raise
 
         return ppl
 
@@ -114,7 +115,8 @@ class LMEvaluator:
 
             except Exception as e:
                 results[task] = sys.maxsize
-                raise e
+                LOGGER.error(e)
+                raise
 
         return results
 

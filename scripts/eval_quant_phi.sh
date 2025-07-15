@@ -4,7 +4,7 @@
 python examples/phi.py \
     --model d:\\models\\phi-1.5 \
     --exp phi2-quant-eval \
-    --seq-len 2048 \
+    --seq-len 512 \
     --task ppl \
     --device 0
     
@@ -16,7 +16,7 @@ python examples/phi.py \
     --quant-method rtn \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
-    --seq-len 2048 \
+    --seq-len 512 \
     --task ppl \
     --device 0
 
@@ -28,7 +28,7 @@ python examples/phi.py \
     --quant-method gptq \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
-    --seq-len 2048 \
+    --seq-len 512 \
     --task ppl \
     --device 0
 
@@ -40,7 +40,7 @@ python examples/phi.py \
     --quant-method awq \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
-    --seq-len 2048 \
+    --seq-len 512 \
     --task ppl \
     --device 0
 
@@ -52,7 +52,7 @@ python examples/phi.py \
     --quant-method awq_plus \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
-    --seq-len 2048 \
+    --seq-len 512 \
     --task ppl \
     --device 0
 
@@ -60,11 +60,11 @@ python examples/phi.py \
 #############################################################
 
 
-bf16 model
+# bf16 model
 python examples/phi.py \
     --model d:\\models\\phi-2 \
     --exp phi2-quant-eval \
-    --seq-len 2048 \
+    --seq-len 512 \
     --task ppl \
     --device 0
     
@@ -76,11 +76,11 @@ python examples/phi.py \
     --quant-method rtn \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
-    --seq-len 2048 \
+    --seq-len 512 \
     --task ppl \
     --device 0
 
-W4A8 G128 symmetric GPTQ quant.
+# W4A8 G128 symmetric GPTQ quant.
 python examples/phi.py \
     --model d:\\models\\phi-2 \
     --exp phi2-quant-eval \
@@ -88,7 +88,7 @@ python examples/phi.py \
     --quant-method gptq \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
-    --seq-len 2048 \
+    --seq-len 512 \
     --task ppl \
     --device 0
 
@@ -100,7 +100,7 @@ python examples/phi.py \
     --quant-method awq \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
-    --seq-len 2048 \
+    --seq-len 512 \
     --task ppl \
     --device 0
 
@@ -112,6 +112,6 @@ python examples/phi.py \
     --quant-method awq_plus \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
-    --seq-len 2048 \
+    --seq-len 512 \
     --task ppl \
     --device 0
