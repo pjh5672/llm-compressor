@@ -288,7 +288,7 @@ def auto_scale_block(module, module_kwargs, input_feat, **kwargs):
                 inp=input_feat["mlp.fc1"],
             )
         )
-    elif isinstance(module, Gemma2DecoderLayer, Gemma3DecoderLayer):
+    elif isinstance(module, (Gemma2DecoderLayer, Gemma3DecoderLayer)):
         # attention input
         scales_list.append(
             _auto_get_scale(

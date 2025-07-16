@@ -276,21 +276,38 @@ if __name__ == "__main__":
         device_map="cpu",
     )
 
+    model.prune(
+        tokenizer=tokenizer,
+        prune_method=args.prune_method,
+        prune_config=args.prune_config,
+        device=device,
+        prune=args.prune,
+    )
+    
     if args.profile:
         model.profile(
             quant_config=quant_config,
             device=device,
             save_path=args.exp_dir,
         )
-        qparser.disable_profile(args.quant_config)
+    
+    # qparser.register_org_config([
+
+    # ])
+
+    # if args.profile:
+    #     model.profile(
+    #         quant_config=quant_config,
+    #         device=device,
+    #         save_path=args.exp_dir,
+    #         mixed_precision=qparser.mpq
+    #     )
 
     quant_kwargs = {
         "n_samples": 128,
         "seq_len": 512,
         "rotation_path": args.rotation_path,
-        "mixed_precision": qparser.mpq,
     }
-
     model.quantize(
         tokenizer=tokenizer,
         quant_method=args.quant_method,
@@ -305,6 +322,7 @@ if __name__ == "__main__":
     eval_kwargs = {
         "seq_len": 512,
         "batch_size": 1,
+        "is_check_sparsity": args.prune,
     }
     results = evaluator.eval(tasks="ppl", **eval_kwargs)
     print(results)

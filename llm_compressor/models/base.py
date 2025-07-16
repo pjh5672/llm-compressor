@@ -51,9 +51,12 @@ class CompressForCausalLM:
     def profile(self, quant_config, device, save_path="./", **kwargs):
         LOGGER.info("Profiling model...")
         mse = kwargs.get("mse", False)
+        mixed_precision = kwargs.get("mixed_precision")
+
         self._prepare_qmodule(
             quant_config=quant_config,
             save_path=save_path,
+            mixed_precision=mixed_precision,
         )
 
         use_cache = self.config.use_cache
@@ -89,7 +92,8 @@ class CompressForCausalLM:
 
         batch = testenc.input_ids[:, :256]
         self(batch.to(self.device))
-        LOGGER.info("Profiling complete.")
+        LOGGER.info("Profiling complete. (This process will be exit.)")
+        sys.exit(0)
 
     def quantize(self, tokenizer, quant_method, quant_config, device, **kwargs):
         if kwargs.get("quantize"):

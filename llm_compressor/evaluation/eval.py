@@ -29,7 +29,7 @@ class LMEvaluator:
     def eval(self, tasks, **kwargs):
         LOGGER.info("Evaluating compressed model...")
 
-        if kwargs.get("check_sparsity", False):
+        if kwargs.get("is_check_sparsity", False):
             check_sparsity(self.model)
 
         results = {}
