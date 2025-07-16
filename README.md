@@ -43,9 +43,9 @@ A lightweight, modular toolkit for compressing Large Language Models (LLMs) usin
 
 ## 📚 Documentation
 
-- #### [Getting Started](docs/getting_started.md)
-- #### [Pruning Docs](docs/pruning.md)
-- #### [Quantization Docs](docs/quantization.md)
+- [Getting Started](docs/getting_started.md)
+- [Pruning Docs](docs/pruning.md)
+- [Quantization Docs](docs/quantization.md)
 
 ---
 
