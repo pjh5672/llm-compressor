@@ -25,6 +25,9 @@ pip install -e .
 
 ### 🛠️ Quick Start
 
+
+#### 1. Get Your Argument
+
 As for the argument(args), you can following the information below.
 ```
 options: 
@@ -50,8 +53,6 @@ options:
     --device            cuda devices, i.e. 0 or 0,1,2,3 or cpu
     --seed              Inference seed
 ```
-
-#### 1. Get Your Argument
 
 ```python
 from pathlib import Path
@@ -122,7 +123,7 @@ eval_kwargs = {
     "tokenizer_path": args.model,
     "seq_len": args.seq_len,
     "batch_size": args.batch_size,
-    "check_sparsity": args.prune,
+    "is_check_sparsity": args.prune,
 }
 results = evaluator.eval(tasks=args.tasks, **eval_kwargs)
 print_eval(results)
