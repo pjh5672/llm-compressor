@@ -66,7 +66,7 @@ python examples/gemma3.py \
     --task ppl \
     --device 0
     
-# W4A8 G128 symmetric RTN quant.
+W4A8 G128 symmetric RTN quant.
 python examples/gemma3.py \
     --model d:\\models\\gemma-3-4b-it \
     --exp gemma3-quant-eval \

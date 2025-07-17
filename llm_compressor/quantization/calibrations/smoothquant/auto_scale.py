@@ -186,7 +186,6 @@ def auto_scale_block(module, input_feat, **kwargs):
                 inp=input_feat["mlp.gate_proj"],
             )
         )
-
     else:
         raise NotImplementedError(f"{type(module)} not supported yet!")
 

@@ -289,20 +289,6 @@ def auto_scale_block(module, module_kwargs, input_feat, **kwargs):
             )
         )
     elif isinstance(module, (Gemma2DecoderLayer, Gemma3DecoderLayer)):
-        # attention input
-        scales_list.append(
-            _auto_get_scale(
-                prev_op=module.input_layernorm,
-                layers=[
-                    module.self_attn.q_proj,
-                    module.self_attn.k_proj,
-                    module.self_attn.v_proj,
-                ],
-                inp=input_feat["self_attn.q_proj"],
-                module2inspect=module.self_attn,
-                kwargs=module_kwargs,
-            )
-        )
         # attn out
         # Please refer to https://github.com/mit-han-lab/llm-awq/pull/67#issue-1850622696
         if module.self_attn.v_proj.weight.shape == module.self_attn.o_proj.weight.shape:
@@ -313,15 +299,6 @@ def auto_scale_block(module, module_kwargs, input_feat, **kwargs):
                     inp=input_feat["self_attn.o_proj"],
                 )
             )
-        # fc1
-        scales_list.append(
-            _auto_get_scale(
-                prev_op=module.pre_feedforward_layernorm,
-                layers=[module.mlp.gate_proj, module.mlp.up_proj],
-                inp=input_feat["mlp.gate_proj"],
-                module2inspect=module.mlp,
-            )
-        )
         # fc2
         scales_list.append(
             _auto_get_scale(
