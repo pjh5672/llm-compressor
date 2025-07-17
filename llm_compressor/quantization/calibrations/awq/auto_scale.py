@@ -213,7 +213,6 @@ def auto_scale_block(module, module_kwargs, input_feat, **kwargs):
             LlamaDecoderLayer,
             Qwen2DecoderLayer,
             Qwen3DecoderLayer,
-            GemmaDecoderLayer,
         ),
     ):
         # attention input

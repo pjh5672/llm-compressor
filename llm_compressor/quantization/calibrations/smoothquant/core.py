@@ -119,7 +119,7 @@ def smoothquant(model, device, tokenizer, n_samples=512, seq_len=2048, mse=False
             input_feat=input_feat,
             model_name=model_name,
         )
-        apply_scale(layer, scales_list, device)
+        apply_scale(layer, scales_list, device, alpha=0.5)
         layer.cpu()
         del input_feat, layer
         cleanup_memory(verbose=False)

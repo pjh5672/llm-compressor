@@ -121,7 +121,6 @@ def auto_scale_block(module, input_feat, **kwargs):
             LlamaDecoderLayer,
             Qwen2DecoderLayer,
             Qwen3DecoderLayer,
-            GemmaDecoderLayer,
         ),
     ):
         # attention input
@@ -144,55 +143,13 @@ def auto_scale_block(module, input_feat, **kwargs):
                 inp=input_feat["mlp.gate_proj"],
             )
         )
-    elif isinstance(module, PhiDecoderLayer):
-        # attention input
-        scales_list.append(
-            _auto_get_scale(
-                prev_op=module.input_layernorm,
-                layers=[
-                    module.self_attn.q_proj,
-                    module.self_attn.k_proj,
-                    module.self_attn.v_proj,
-                ],
-                inp=input_feat["self_attn.q_proj"],
-            )
-        )
-        # fc1
-        scales_list.append(
-            _auto_get_scale(
-                prev_op=module.self_attn.dense,
-                layers=[module.mlp.fc1],
-                inp=input_feat["mlp.fc1"],
-            )
-        )
-    elif isinstance(module, (Gemma2DecoderLayer, Gemma3DecoderLayer)):
-        # attention input
-        scales_list.append(
-            _auto_get_scale(
-                prev_op=module.input_layernorm,
-                layers=[
-                    module.self_attn.q_proj,
-                    module.self_attn.k_proj,
-                    module.self_attn.v_proj,
-                ],
-                inp=input_feat["self_attn.q_proj"],
-            )
-        )
-        # fc1
-        scales_list.append(
-            _auto_get_scale(
-                prev_op=module.pre_feedforward_layernorm,
-                layers=[module.mlp.gate_proj, module.mlp.up_proj],
-                inp=input_feat["mlp.gate_proj"],
-            )
-        )
     else:
         raise NotImplementedError(f"{type(module)} not supported yet!")
 
     return scales_list
 
 
-def apply_scale(module, scales_list, device):
+def apply_scale(module, scales_list, device, alpha=0.5):
     for prev_op_name, layer_names, act_scales in scales_list:
         prev_op = get_op_by_name(module, prev_op_name)
         layers = [get_op_by_name(module, name) for name in layer_names]
@@ -214,6 +171,6 @@ def apply_scale(module, scales_list, device):
                 Gemma3RMSNorm,
             ),
         ):
-            scale_ln_fcs(prev_op, layers, act_scales)
+            scale_ln_fcs(prev_op, layers, act_scales, alpha)
         else:
             raise NotImplementedError(f"prev_op {type(prev_op)} not supported yet!")
