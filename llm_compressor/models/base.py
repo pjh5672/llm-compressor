@@ -115,6 +115,7 @@ class CompressForCausalLM:
                         tokenizer,
                         n_samples=n_samples,
                         seq_len=seq_len,
+                        mse=True,
                         verbose=True,
                     )
                 elif quant_method == "awq":
@@ -126,6 +127,7 @@ class CompressForCausalLM:
                         tokenizer,
                         n_samples=n_samples,
                         seq_len=seq_len,
+                        mse=True,
                         verbose=True,
                     )
                 elif quant_method == "gptq":
@@ -148,6 +150,7 @@ class CompressForCausalLM:
                         tokenizer,
                         n_samples=n_samples,
                         seq_len=seq_len,
+                        mse=True,
                         verbose=True,
                     )
                 elif quant_method == "spinquant-opt":
