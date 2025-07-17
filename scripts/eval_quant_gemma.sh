@@ -1,4 +1,4 @@
-#!/bin/bash
+# !/bin/bash
 
 # bf16 model
 python examples/gemma.py \

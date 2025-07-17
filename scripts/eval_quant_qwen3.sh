@@ -57,7 +57,7 @@ python examples/qwen3.py \
     --device 0
 
 
-#########################################################
+########################################################
 
 
 # bf16 model
@@ -106,7 +106,7 @@ python examples/qwen3.py \
 
 # W4A8 G128 symmetric AWQ quant.
 python examples/qwen3.py \
-    --model d:\\models\\qwen3-1.7b \
+    --model d:\\models\\qwen3-4b \
     --exp qwen3-quant-eval \
     --quantize \
     --quant-method awq_plus \

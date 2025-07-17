@@ -292,15 +292,27 @@ if __name__ == "__main__":
         prune=args.prune,
     )
     
-    if args.profile:
-        model.profile(
-            quant_config=quant_config,
-            device=device,
-            save_path=args.exp_dir,
-        )
+    # if args.profile:
+    #     model.profile(
+    #         quant_config=quant_config,
+    #         device=device,
+    #         save_path=args.exp_dir,
+    #     )
     
-    # qparser.register_org_config([
+    # qparser.register_4_to_8bit_config([
+    #     "layers.0.self_attn.k_proj.weight",
+    #     "layers.0.self_attn.v_proj.weight",
+    #     "layers.1.self_attn.out_proj.weight",
+    # ])
 
+    # qparser.register_8_to_4bit_config([
+    #     "layers.0.self_attn.qk_matmul.input",
+    #     "layers.0.self_attn.out_proj.output",
+    # ])
+
+    # qparser.register_org_config([
+    #     "layers.1.fc1.input",
+    #     "layers.0.self_attn.q_proj.input",
     # ])
 
     # if args.profile:
