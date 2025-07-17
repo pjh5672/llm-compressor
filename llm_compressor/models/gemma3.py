@@ -113,6 +113,9 @@ class QuantGemma3Attention(Gemma3Attention):
         self.attn_logit_softcapping = attention.attn_logit_softcapping
         self.sliding_window = attention.sliding_window
 
+        self.q_norm = attention.q_norm
+        self.k_norm = attention.k_norm
+
     def forward(
         self,
         hidden_states: torch.Tensor,
