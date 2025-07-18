@@ -34,7 +34,7 @@ def gptq(model, device, n_samples=512, seq_len=2048, mse=False, verbose=True):
 
     tokenizer_path = model.config._name_or_path
     dataloader, _ = get_loaders(
-        name="c4", tokenizer_path=tokenizer_path, nsamples=n_samples, seqlen=seq_len
+        name="wikitext2", tokenizer_path=tokenizer_path, nsamples=n_samples, seqlen=seq_len
     )
 
     inps = []
