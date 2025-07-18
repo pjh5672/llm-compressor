@@ -308,5 +308,5 @@ def update_weight(layer, device, block_size=128, percdamp=0.1, actorder=False, a
 
     layer.weight.data = Q.reshape(layer.weight.shape).to(layer.weight.data.dtype)
 
-    del Q, H, Hinv, W1, Q1, Err1, Hinv1
+    del Q, H, Hinv, P, W1, Q1, Err1, Hinv1, P1
     cleanup_memory(verbose=False)
