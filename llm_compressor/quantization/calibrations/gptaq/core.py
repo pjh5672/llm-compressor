@@ -156,9 +156,12 @@ def gptaq(model, device, n_samples=512, seq_len=2048, mse=False, verbose=True):
                     alpha=0.25,
                 )
                 del subset[name].weight_quantizer
+                del subset[name].fp_inp
 
         for j in range(n_samples):
             outs[j] = layer(inps[j].unsqueeze(0), **layer_kwargs)[0]
+
+        fp_inputs_cache.clear_cache()
         layers[i] = layer.cpu()
         del layer
         cleanup_memory(verbose=False)
@@ -170,7 +173,7 @@ def gptaq(model, device, n_samples=512, seq_len=2048, mse=False, verbose=True):
     model.lm_head.weight.data = model.lm_head.weight_quantizer(
         model.lm_head.weight.data
     )
-    del model.lm_head.weight_quantizer
+    del model.lm_head.weight_quantizer, inps, outs, fp_inps, fp_inputs_cache
     model.lm_head.cpu()
     cleanup_memory(verbose=False)
 
@@ -308,5 +311,5 @@ def update_weight(layer, device, block_size=128, percdamp=0.1, actorder=False, a
 
     layer.weight.data = Q.reshape(layer.weight.shape).to(layer.weight.data.dtype)
 
-    del Q, H, Hinv, P, W1, Q1, Err1, Hinv1, P1
+    del Q, H, Hinv, W1, Q1, Err1, Hinv1, P, P1, MASK, MASK1
     cleanup_memory(verbose=False)

@@ -146,7 +146,7 @@ def gptq(model, device, n_samples=512, seq_len=2048, mse=False, verbose=True):
     model.lm_head.weight.data = model.lm_head.weight_quantizer(
         model.lm_head.weight.data
     )
-    del model.lm_head.weight_quantizer
+    del model.lm_head.weight_quantizer, inps, outs
     model.lm_head.cpu()
     cleanup_memory(verbose=False)
 
@@ -273,5 +273,5 @@ def update_weight(layer, device, block_size=128, percdamp=0.1, actorder=False):
 
     layer.weight.data = Q.reshape(layer.weight.shape).to(layer.weight.data.dtype)
 
-    del Q, H, Hinv, W1, Q1, Err1, Hinv1
+    del Q, H, Hinv, W1, Q1, Err1, Hinv1, MASK, MASK1
     cleanup_memory(verbose=False)

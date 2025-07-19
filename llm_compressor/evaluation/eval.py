@@ -18,7 +18,6 @@ from utils.module import check_sparsity  # noqa: E402
 
 class LMEvaluator:
     def __init__(self, model, device, n_samples=None):
-        # Move the model to GPUs (as much as possible) for LM evaluation
         if model.config.tie_word_embeddings:
             model.tie_weights()
 
