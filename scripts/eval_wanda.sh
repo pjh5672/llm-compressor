@@ -149,7 +149,7 @@ python examples/phi.py \
     --prune-method wanda \
     --sparsity 0.3 \
     --seq-len 512 \
-    --taskss ppl \
+    --tasks ppl \
     --device 0
 
 python examples/phi.py \

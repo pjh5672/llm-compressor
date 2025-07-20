@@ -37,12 +37,9 @@ def magnitude(model, device, sparsity_ratio, verbose=True):
         for name in subset:
             W = subset[name].weight.data
             W_metric = torch.abs(W)
-            W_mask = torch.zeros_like(W_metric) == 1
-
-            sort_res = torch.sort(W_metric, dim=-1, stable=True)
-            indices = sort_res[1][:, : int(W_metric.shape[1] * sparsity_ratio)]
-            W_mask.scatter_(1, indices, True)
-
+            thresh = torch.sort(W_metric.flatten())[0][int(W.numel() * sparsity_ratio)]
+            W_mask = W_metric <= thresh
+            
             subset[name].weight.data[W_mask] = 0
 
         layers[i] = layer.cpu()

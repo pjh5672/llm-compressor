@@ -15,7 +15,7 @@ python examples/phi.py \
     --prune-method magnitude \
     --sparsity 0.3 \
     --seq-len 512 \
-    --taskss ppl \
+    --tasks ppl \
     --device 0
 
 ##############################################################
