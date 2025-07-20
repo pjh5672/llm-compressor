@@ -15,6 +15,7 @@ if str(PATH) not in sys.path:
 from utils.general import LOGGER  # noqa: E402
 from utils.module import find_layers  # noqa: E402
 from utils.torch_utils import cleanup_memory  # noqa: E402
+from pruning.wanda.core import wanda  # noqa: E402
 from pruning.magnitude.core import magnitude  # noqa: E402
 from quantization.calibrations.rtn.core import rtn  # noqa: E402
 from quantization.calibrations.awq.core import awq  # noqa: E402
@@ -109,10 +110,12 @@ class CompressForCausalLM:
                 elif quant_method == "smoothquant":
                     n_samples = kwargs.get("n_samples", 128)
                     seq_len = kwargs.get("seq_len", 2048)
+                    alpha = kwargs.get("alpha", 0.5)
                     smoothquant(
                         self,
                         device,
                         tokenizer,
+                        alpha=alpha,
                         n_samples=n_samples,
                         seq_len=seq_len,
                         mse=True,
@@ -207,7 +210,19 @@ class CompressForCausalLM:
                 sparsity_ratio = prune_config.get("sparsity_ratio")
 
                 if prune_method == "magnitude":
-                    magnitude(self, device, sparsity_ratio)
+                    magnitude(self, device, sparsity_ratio=sparsity_ratio, verbose=True)
+
+                elif prune_method == "wanda":
+                    n_samples = kwargs.get("n_samples", 128)
+                    seq_len = kwargs.get("seq_len", 2048)
+                    wanda(
+                        self,
+                        device,
+                        sparsity_ratio=sparsity_ratio,
+                        n_samples=n_samples,
+                        seq_len=seq_len,
+                        verbose=True,
+                    )
 
             except Exception as e:
                 LOGGER.error(e)

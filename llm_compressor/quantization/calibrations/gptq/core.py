@@ -34,7 +34,10 @@ def gptq(model, device, n_samples=512, seq_len=2048, mse=False, verbose=True):
 
     tokenizer_path = model.config._name_or_path
     dataloader, _ = get_loaders(
-        name="wikitext2", tokenizer_path=tokenizer_path, nsamples=n_samples, seqlen=seq_len
+        name="wikitext2",
+        tokenizer_path=tokenizer_path,
+        nsamples=n_samples,
+        seqlen=seq_len,
     )
 
     inps = []
@@ -54,7 +57,7 @@ def gptq(model, device, n_samples=512, seq_len=2048, mse=False, verbose=True):
             self.module = module
 
         def forward(self, inp, **kwargs):
-            inps.append(inp)
+            inps.append(inp)  # noqa: F821
             layer_kwargs.update(kwargs)
             raise ValueError  # early exit to break later inference
 
@@ -135,6 +138,7 @@ def gptq(model, device, n_samples=512, seq_len=2048, mse=False, verbose=True):
 
         for j in range(n_samples):
             outs[j] = layer(inps[j].unsqueeze(0), **layer_kwargs)[0]
+
         layers[i] = layer.cpu()
         del layer
         cleanup_memory(verbose=False)
@@ -156,7 +160,7 @@ def gptq(model, device, n_samples=512, seq_len=2048, mse=False, verbose=True):
     return
 
 
-def update_weight(layer, device, block_size=128, percdamp=0.1, actorder=False):
+def update_weight(layer, device, block_size=128, percdamp=0.01, actorder=False):
     W = layer.weight.data.clone()
     if isinstance(layer, transformers.Conv1D):
         W = W.t()

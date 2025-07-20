@@ -8,7 +8,7 @@ python examples/opt.py \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
     --seq-len 512 \
-    --task ppl \
+    --tasks ppl \
     --device 0
 
 python examples/opt.py \
@@ -19,7 +19,7 @@ python examples/opt.py \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
     --seq-len 512 \
-    --task ppl \
+    --tasks ppl \
     --device 0
 
 python examples/opt.py \
@@ -30,7 +30,7 @@ python examples/opt.py \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
     --seq-len 512 \
-    --task ppl \
+    --tasks ppl \
     --device 0
 
 ########################################################
@@ -43,7 +43,7 @@ python examples/bloom.py \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
     --seq-len 512 \
-    --task ppl \
+    --tasks ppl \
     --device 0
 
 python examples/bloom.py \
@@ -54,7 +54,7 @@ python examples/bloom.py \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
     --seq-len 512 \
-    --task ppl \
+    --tasks ppl \
     --device 0
 
 python examples/bloom.py \
@@ -65,7 +65,7 @@ python examples/bloom.py \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
     --seq-len 512 \
-    --task ppl \
+    --tasks ppl \
     --device 0
 
 python examples/bloom.py \
@@ -76,7 +76,7 @@ python examples/bloom.py \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
     --seq-len 512 \
-    --task ppl \
+    --tasks ppl \
     --device 0
 
 ########################################################
@@ -89,7 +89,7 @@ python examples/phi.py \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
     --seq-len 512 \
-    --task ppl \
+    --tasks ppl \
     --device 0
 
 python examples/phi.py \
@@ -100,7 +100,7 @@ python examples/phi.py \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
     --seq-len 512 \
-    --task ppl \
+    --tasks ppl \
     --device 0
 
 ########################################################
@@ -113,7 +113,7 @@ python examples/gemma.py \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
     --seq-len 512 \
-    --task ppl \
+    --tasks ppl \
     --device 0
 
 python examples/gemma2.py \
@@ -124,7 +124,7 @@ python examples/gemma2.py \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
     --seq-len 512 \
-    --task ppl \
+    --tasks ppl \
     --device 0
 
 python examples/gemma3.py \
@@ -135,7 +135,7 @@ python examples/gemma3.py \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
     --seq-len 512 \
-    --task ppl \
+    --tasks ppl \
     --device 0
 
 python examples/gemma3.py \
@@ -146,7 +146,7 @@ python examples/gemma3.py \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
     --seq-len 512 \
-    --task ppl \
+    --tasks ppl \
     --device 0
 
 ########################################################
@@ -159,7 +159,7 @@ python examples/qwen2.py \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
     --seq-len 512 \
-    --task ppl \
+    --tasks ppl \
     --device 0
 
 python examples/qwen3.py \
@@ -170,7 +170,7 @@ python examples/qwen3.py \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
     --seq-len 512 \
-    --task ppl \
+    --tasks ppl \
     --device 0
 
 python examples/qwen3.py \
@@ -181,7 +181,7 @@ python examples/qwen3.py \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
     --seq-len 512 \
-    --task ppl \
+    --tasks ppl \
     --device 0
 
 ########################################################
@@ -194,7 +194,7 @@ python examples/llama.py \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
     --seq-len 512 \
-    --task ppl \
+    --tasks ppl \
     --device 0
 
 python examples/llama.py \
@@ -205,5 +205,5 @@ python examples/llama.py \
     --weight int4-g[128]-rw \
     --act-in int8-g[128]-rw \
     --seq-len 512 \
-    --task ppl \
+    --tasks ppl \
     --device 0

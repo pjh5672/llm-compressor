@@ -5,13 +5,9 @@ import torch
 from torch import nn
 from transformers.models.opt.modeling_opt import OPTDecoderLayer
 from transformers.models.bloom.modeling_bloom import BloomBlock
-from transformers.models.phi.modeling_phi import PhiDecoderLayer
 from transformers.models.llama.modeling_llama import LlamaDecoderLayer, LlamaRMSNorm
 from transformers.models.qwen2.modeling_qwen2 import Qwen2DecoderLayer, Qwen2RMSNorm
 from transformers.models.qwen3.modeling_qwen3 import Qwen3DecoderLayer, Qwen3RMSNorm
-from transformers.models.gemma.modeling_gemma import GemmaDecoderLayer, GemmaRMSNorm
-from transformers.models.gemma2.modeling_gemma2 import Gemma2DecoderLayer, Gemma2RMSNorm
-from transformers.models.gemma3.modeling_gemma3 import Gemma3DecoderLayer, Gemma3RMSNorm
 
 PATH = Path(__file__).resolve().parents[3]
 if str(PATH) not in sys.path:
@@ -64,6 +60,7 @@ def auto_scale_block(module, input_feat, **kwargs):
         device = next(module2inspect.parameters()).device
         scales = get_act_scale(inp.to(device))
         scales = scales.detach().cpu()
+
         # prev_op_name, [layer_name], scale
         return (
             get_op_name(module, prev_op),
@@ -166,9 +163,6 @@ def apply_scale(module, scales_list, device, alpha=0.5):
                 LlamaRMSNorm,
                 Qwen2RMSNorm,
                 Qwen3RMSNorm,
-                GemmaRMSNorm,
-                Gemma2RMSNorm,
-                Gemma3RMSNorm,
             ),
         ):
             scale_ln_fcs(prev_op, layers, act_scales, alpha)

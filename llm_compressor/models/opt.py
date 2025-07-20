@@ -284,21 +284,26 @@ if __name__ == "__main__":
         device_map="cpu",
     )
 
+    prune_kwargs = {
+        "n_samples": 128,
+        "seq_len": 512,
+    }
     model.prune(
         tokenizer=tokenizer,
         prune_method=args.prune_method,
         prune_config=args.prune_config,
         device=device,
         prune=args.prune,
+        **prune_kwargs,
     )
-    
+
     # if args.profile:
     #     model.profile(
     #         quant_config=quant_config,
     #         device=device,
     #         save_path=args.exp_dir,
     #     )
-    
+
     # qparser.register_4_to_8bit_config([
     #     "layers.0.self_attn.k_proj.weight",
     #     "layers.0.self_attn.v_proj.weight",

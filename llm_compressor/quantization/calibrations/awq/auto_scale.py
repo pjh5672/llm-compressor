@@ -9,7 +9,6 @@ from transformers.models.phi.modeling_phi import PhiDecoderLayer
 from transformers.models.llama.modeling_llama import LlamaDecoderLayer, LlamaRMSNorm
 from transformers.models.qwen2.modeling_qwen2 import Qwen2DecoderLayer, Qwen2RMSNorm
 from transformers.models.qwen3.modeling_qwen3 import Qwen3DecoderLayer, Qwen3RMSNorm
-from transformers.models.gemma.modeling_gemma import GemmaDecoderLayer, GemmaRMSNorm
 from transformers.models.gemma2.modeling_gemma2 import Gemma2DecoderLayer, Gemma2RMSNorm
 from transformers.models.gemma3.modeling_gemma3 import Gemma3DecoderLayer, Gemma3RMSNorm
 
@@ -123,7 +122,7 @@ def auto_scale_block(module, module_kwargs, input_feat, **kwargs):
         best_scales = best_scales.view(-1)
 
         assert torch.isnan(best_scales).sum() == 0, best_scales
-        return best_scales.detach()
+        return best_scales
 
     def _auto_get_scale(prev_op, layers, inp, module2inspect=None, kwargs={}):
         # module2inspect: if given, we will check the output diff of this module instead of layers
@@ -133,6 +132,7 @@ def auto_scale_block(module, module_kwargs, input_feat, **kwargs):
 
         scales = _search_module_scale(module2inspect, layers, inp, kwargs)
         scales = scales.detach().cpu()
+
         # prev_op_name, [layer_name], scale
         return (
             get_op_name(module, prev_op),
@@ -332,7 +332,6 @@ def apply_scale(module, scales_list, device, input_feat_dict=None):
                 LlamaRMSNorm,
                 Qwen2RMSNorm,
                 Qwen3RMSNorm,
-                GemmaRMSNorm,
                 Gemma2RMSNorm,
                 Gemma3RMSNorm,
             ),

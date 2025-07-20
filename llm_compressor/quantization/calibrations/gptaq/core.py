@@ -35,7 +35,10 @@ def gptaq(model, device, n_samples=512, seq_len=2048, mse=False, verbose=True):
 
     tokenizer_path = model.config._name_or_path
     dataloader, _ = get_loaders(
-        name="wikitext2", tokenizer_path=tokenizer_path, nsamples=n_samples, seqlen=seq_len
+        name="wikitext2",
+        tokenizer_path=tokenizer_path,
+        nsamples=n_samples,
+        seqlen=seq_len,
     )
 
     inps = []
@@ -55,7 +58,7 @@ def gptaq(model, device, n_samples=512, seq_len=2048, mse=False, verbose=True):
             self.module = module
 
         def forward(self, inp, **kwargs):
-            inps.append(inp)
+            inps.append(inp)  # noqa: F821
             layer_kwargs.update(kwargs)
             raise ValueError  # early exit to break later inference
 
@@ -130,12 +133,17 @@ def gptaq(model, device, n_samples=512, seq_len=2048, mse=False, verbose=True):
                 m.weight_quantizer.nsamples += tmp
                 inp = math.sqrt(2 / m.weight_quantizer.nsamples) * x.float()
                 m.weight_quantizer.H += inp.matmul(inp.t())
-                dX = math.sqrt(2 / m.weight_quantizer.nsamples) * m.fp_inp[0].float() - inp
+                dX = (
+                    math.sqrt(2 / m.weight_quantizer.nsamples) * m.fp_inp[0].float()
+                    - inp
+                )
                 m.weight_quantizer.dXXT += dX.matmul(inp.t())
                 del m.fp_inp[0]
 
             first_module_name = list(subset.keys())[0]
-            handle = subset[first_module_name].register_forward_hook(cache_hessian_dxxt_weight)
+            handle = subset[first_module_name].register_forward_hook(
+                cache_hessian_dxxt_weight
+            )
             for j in range(n_samples):
                 layer(inps[j].unsqueeze(0), **layer_kwargs)
             handle.remove()
@@ -143,8 +151,12 @@ def gptaq(model, device, n_samples=512, seq_len=2048, mse=False, verbose=True):
             # copy H and dXXT
             for name in subset:
                 if name != first_module_name:
-                    subset[name].weight_quantizer.H = subset[first_module_name].weight_quantizer.H
-                    subset[name].weight_quantizer.dXXT = subset[first_module_name].weight_quantizer.dXXT
+                    subset[name].weight_quantizer.H = subset[
+                        first_module_name
+                    ].weight_quantizer.H
+                    subset[name].weight_quantizer.dXXT = subset[
+                        first_module_name
+                    ].weight_quantizer.dXXT
 
             for name in subset:
                 update_weight(
@@ -183,7 +195,9 @@ def gptaq(model, device, n_samples=512, seq_len=2048, mse=False, verbose=True):
     return
 
 
-def update_weight(layer, device, block_size=128, percdamp=0.1, actorder=False, alpha=0.25):
+def update_weight(
+    layer, device, block_size=128, percdamp=0.01, actorder=False, alpha=0.25
+):
     W = layer.weight.data.clone()
     if isinstance(layer, transformers.Conv1D):
         W = W.t()
@@ -225,7 +239,9 @@ def update_weight(layer, device, block_size=128, percdamp=0.1, actorder=False, a
             H = H.reshape(K // group_size, group_size, K // group_size, group_size)
             H = H[perm][..., perm, :]
             H = H.reshape(K, K)
-            dXXT = dXXT.reshape(K // group_size, group_size, K // group_size, group_size)
+            dXXT = dXXT.reshape(
+                K // group_size, group_size, K // group_size, group_size
+            )
             dXXT = dXXT[perm][..., perm, :]
             dXXT = dXXT.reshape(K, K)
 
@@ -278,7 +294,9 @@ def update_weight(layer, device, block_size=128, percdamp=0.1, actorder=False, a
                 q *= m
                 Q1[:, i] = q
                 err1 = (w - q) / d
-                W1[:, i:] -= err1.unsqueeze(1).matmul(Hinv1[i, i:].unsqueeze(0)) - w.unsqueeze(1).matmul(P1[i, i:].unsqueeze(0))
+                W1[:, i:] -= err1.unsqueeze(1).matmul(
+                    Hinv1[i, i:].unsqueeze(0)
+                ) - w.unsqueeze(1).matmul(P1[i, i:].unsqueeze(0))
                 Err1[:, i] = err1
         else:
             for i in range(0, count, group_size):
@@ -292,7 +310,9 @@ def update_weight(layer, device, block_size=128, percdamp=0.1, actorder=False, a
                 q *= m
                 Q1[:, i : i + group_size] = q
                 err1 = (w - q) / torch.diag(d)
-                W1[:, i:] -= err1.matmul(Hinv1[i : i + group_size, i:]) - w.matmul(P1[i : i + group_size, i:])
+                W1[:, i:] -= err1.matmul(Hinv1[i : i + group_size, i:]) - w.matmul(
+                    P1[i : i + group_size, i:]
+                )
                 Err1[:, i : i + group_size] = err1
 
         Q[:, i1:i2] = Q1

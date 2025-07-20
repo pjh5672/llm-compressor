@@ -5,7 +5,7 @@ python examples/opt.py \
     --model d:\\models\\opt-125m \
     --exp opt-prune-eval \
     --seq-len 512 \
-    --task ppl \
+    --tasks ppl \
     --device 0
     
 python examples/opt.py \
@@ -15,7 +15,7 @@ python examples/opt.py \
     --prune-method magnitude \
     --sparsity 0.3 \
     --seq-len 512 \
-    --task ppl \
+    --tasks ppl \
     --device 0
 
 ########################################################
@@ -25,7 +25,7 @@ python examples/opt.py \
     --model d:\\models\\opt-350m \
     --exp opt-prune-eval \
     --seq-len 512 \
-    --task ppl \
+    --tasks ppl \
     --device 0
     
 python examples/opt.py \
@@ -35,7 +35,7 @@ python examples/opt.py \
     --prune-method magnitude \
     --sparsity 0.3 \
     --seq-len 512 \
-    --task ppl \
+    --tasks ppl \
     --device 0
 
 ########################################################
@@ -45,10 +45,9 @@ python examples/opt.py \
     --model d:\\models\\opt-1.3b \
     --exp opt-prune-eval \
     --seq-len 512 \
-    --task ppl \
+    --tasks ppl \
     --device 0
     
-# W4A8 G128 symmetric RTN quant.
 python examples/opt.py \
     --model d:\\models\\opt-1.3b \
     --exp opt-prune-eval \
@@ -56,5 +55,5 @@ python examples/opt.py \
     --prune-method magnitude \
     --sparsity 0.3 \
     --seq-len 512 \
-    --task ppl \
+    --tasks ppl \
     --device 0

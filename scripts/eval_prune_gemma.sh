@@ -5,7 +5,7 @@ python examples/gemma.py \
     --model d:\\models\\gemma-2b-it \
     --exp gemma-prune-eval \
     --seq-len 512 \
-    --task ppl \
+    --tasks ppl \
     --device 0
     
 python examples/gemma.py \
@@ -15,5 +15,5 @@ python examples/gemma.py \
     --prune-method magnitude \
     --sparsity 0.3 \
     --seq-len 512 \
-    --task ppl \
+    --tasks ppl \
     --device 0

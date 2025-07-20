@@ -25,7 +25,16 @@ from quantization.calibrations.smoothquant.auto_scale import (
 
 
 @torch.no_grad()
-def smoothquant(model, device, tokenizer, n_samples=512, seq_len=2048, mse=False, verbose=True):
+def smoothquant(
+    model,
+    device,
+    tokenizer,
+    alpha=0.5,
+    n_samples=512,
+    seq_len=2048,
+    mse=False,
+    verbose=True,
+):
     if verbose:
         LOGGER.info("Smoothing model... [Quant-method : SmoothQuant]")
 
@@ -119,7 +128,7 @@ def smoothquant(model, device, tokenizer, n_samples=512, seq_len=2048, mse=False
             input_feat=input_feat,
             model_name=model_name,
         )
-        apply_scale(layer, scales_list, device, alpha=0.5)
+        apply_scale(layer, scales_list, device, alpha=alpha)
         layer.cpu()
         del input_feat, layer
         cleanup_memory(verbose=False)

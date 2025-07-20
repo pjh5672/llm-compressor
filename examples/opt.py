@@ -23,12 +23,17 @@ model = CompressOPTForCausalLM.from_pretrained(
 )
 
 ############### Model Pruning ###############
+prune_kwargs = {
+    "n_samples": args.calib_num,
+    "seq_len": args.seq_len,
+}
 model.prune(
     tokenizer=tokenizer,
     prune_method=args.prune_method,
     prune_config=args.prune_config,
     device=device,
     prune=args.prune,
+    **prune_kwargs,
 )
 
 ############### Model Profiling ###############

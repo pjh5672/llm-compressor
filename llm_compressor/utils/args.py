@@ -173,9 +173,11 @@ class QuantConfigParser:
                         if fmt.startswith("int"):
                             matmul_config["act_in"]["format"] = fmt.replace(fmt, "int4")
                         elif fmt.startswith("fp8"):
-                            matmul_config["act_in"]["format"] = fmt.replace(fmt, "fp4_e2m1")
+                            matmul_config["act_in"]["format"] = fmt.replace(
+                                fmt, "fp4_e2m1"
+                            )
                         self.mpq.layers.update({m_name: matmul_config})
-    
+
                 elif "output" in name:
                     m_name = name.rstrip(".output")
                     if m_name in self.mpq.layers:
@@ -183,9 +185,13 @@ class QuantConfigParser:
                     fmt = matmul_config["act_out"]["format"]
                     if fmt is not None:
                         if fmt.startswith("int"):
-                            matmul_config["act_out"]["format"] = fmt.replace(fmt, "int4")
+                            matmul_config["act_out"]["format"] = fmt.replace(
+                                fmt, "int4"
+                            )
                         elif fmt.startswith("fp8"):
-                            matmul_config["act_out"]["format"] = fmt.replace(fmt, "fp4_e2m1")
+                            matmul_config["act_out"]["format"] = fmt.replace(
+                                fmt, "fp4_e2m1"
+                            )
                         self.mpq.layers.update({m_name: matmul_config})
             else:
                 linear_config = deepcopy(self.linear)
@@ -199,7 +205,9 @@ class QuantConfigParser:
                         if fmt.startswith("int"):
                             linear_config["act_in"]["format"] = fmt.replace(fmt, "int4")
                         elif fmt.startswith("fp8"):
-                            linear_config["act_in"]["format"] = fmt.replace(fmt, "fp4_e2m1")
+                            linear_config["act_in"]["format"] = fmt.replace(
+                                fmt, "fp4_e2m1"
+                            )
                         self.mpq.layers.update({m_name: linear_config})
 
                 elif "output" in name:
@@ -209,9 +217,13 @@ class QuantConfigParser:
                     fmt = linear_config["act_out"]["format"]
                     if fmt is not None:
                         if fmt.startswith("int"):
-                            linear_config["act_out"]["format"] = fmt.replace(fmt, "int4")
+                            linear_config["act_out"]["format"] = fmt.replace(
+                                fmt, "int4"
+                            )
                         elif fmt.startswith("fp8"):
-                            linear_config["act_out"]["format"] = fmt.replace(fmt, "fp4_e2m1")
+                            linear_config["act_out"]["format"] = fmt.replace(
+                                fmt, "fp4_e2m1"
+                            )
                         self.mpq.layers.update({m_name: linear_config})
 
     def register_org_config(self, layer_names):
@@ -225,7 +237,7 @@ class QuantConfigParser:
                         matmul_config = self.mpq.layers[m_name]
                     matmul_config["act_in"]["type"] = None
                     self.mpq.layers.update({m_name: matmul_config})
-    
+
                 elif "output" in name:
                     m_name = name.rstrip(".output")
                     if m_name in self.mpq.layers:

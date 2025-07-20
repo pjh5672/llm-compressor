@@ -5,7 +5,7 @@ python examples/qwen3.py \
     --model d:\\models\\qwen3-1.7b \
     --exp qwen3-prune-eval \
     --seq-len 512 \
-    --task ppl \
+    --tasks ppl \
     --device 0
     
 python examples/qwen3.py \
@@ -15,7 +15,7 @@ python examples/qwen3.py \
     --prune-method magnitude \
     --sparsity 0.3 \
     --seq-len 512 \
-    --task ppl \
+    --tasks ppl \
     --device 0
 
 ##########################################################
@@ -25,7 +25,7 @@ python examples/qwen3.py \
     --model d:\\models\\qwen3-4b \
     --exp qwen3-prune-eval \
     --seq-len 512 \
-    --task ppl \
+    --tasks ppl \
     --device 0
     
 python examples/qwen3.py \
@@ -35,5 +35,5 @@ python examples/qwen3.py \
     --prune-method magnitude \
     --sparsity 0.3 \
     --seq-len 512 \
-    --task ppl \
+    --tasks ppl \
     --device 0
