@@ -287,6 +287,7 @@ if __name__ == "__main__":
     prune_kwargs = {
         "n_samples": 128,
         "seq_len": 512,
+        "alpha": args.ria_alpha,
     }
     model.prune(
         tokenizer=tokenizer,
@@ -297,12 +298,12 @@ if __name__ == "__main__":
         **prune_kwargs,
     )
 
-    # if args.profile:
-    #     model.profile(
-    #         quant_config=quant_config,
-    #         device=device,
-    #         save_path=args.exp_dir,
-    #     )
+    if args.profile:
+        model.profile(
+            quant_config=quant_config,
+            device=device,
+            save_path=args.exp_dir,
+        )
 
     # qparser.register_4_to_8bit_config([
     #     "layers.0.self_attn.k_proj.weight",
@@ -332,6 +333,8 @@ if __name__ == "__main__":
         "n_samples": 128,
         "seq_len": 512,
         "rotation_path": args.rotation_path,
+        "w_clip": args.w_clip,
+        "alpha": args.sq_alpha,
     }
     model.quantize(
         tokenizer=tokenizer,

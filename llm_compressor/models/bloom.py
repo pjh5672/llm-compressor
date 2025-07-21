@@ -289,6 +289,7 @@ if __name__ == "__main__":
     prune_kwargs = {
         "n_samples": 128,
         "seq_len": 512,
+        "alpha": args.ria_alpha,
     }
     model.prune(
         tokenizer=tokenizer,
@@ -322,6 +323,8 @@ if __name__ == "__main__":
         "n_samples": 128,
         "seq_len": 512,
         "rotation_path": args.rotation_path,
+        "w_clip": args.w_clip,
+        "alpha": args.sq_alpha,
     }
     model.quantize(
         tokenizer=tokenizer,

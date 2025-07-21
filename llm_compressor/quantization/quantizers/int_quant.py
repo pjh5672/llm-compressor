@@ -57,7 +57,7 @@ class INTQuantizer(BaseQuantizer):
         q_min = -q_max
         self.register_buffer("q_max", torch.tensor(q_max))
         self.register_buffer("q_min", torch.tensor(q_min))
-        self.str_format = str(format)
+        self.str_format = str(format).split(".")[-1].upper()
         self.mse = False
         self.configure(zero_point=zero_point, group_size=group_size, axes=axes)
 
@@ -188,7 +188,14 @@ class INTQuantizer(BaseQuantizer):
             x_dq = self.fake_quantize(x, scales=scales, zeros=zeros)
 
         if self.is_profile:
-            self.record_stats(x=x, qdq_x=x_dq)
+            self.record_stats(
+                x=x,
+                qdq_x=x_dq,
+                qtype="INT",
+                qformat=self.str_format,
+                group_size=self.group_size,
+                zero_point=self.zero_point,
+            )
 
         if self.group_size != 0:
             return _undo_reshape_to_blocks(
@@ -205,7 +212,7 @@ class INTQuantizer(BaseQuantizer):
         return (q - zeros) * scales
 
     def extra_repr(self):
-        s = f"Format: {self.str_format.split('.')[-1].upper()}, "
+        s = f"Format: {self.str_format}, "
         s += f"Min: {self.q_min}, Max: {self.q_max}, Axes: {self.axes}"
         if self.is_profile:
             s += f", Op name: {self.op_name}"

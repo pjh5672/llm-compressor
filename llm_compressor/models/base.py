@@ -15,8 +15,10 @@ if str(PATH) not in sys.path:
 from utils.general import LOGGER  # noqa: E402
 from utils.module import find_layers  # noqa: E402
 from utils.torch_utils import cleanup_memory  # noqa: E402
+from pruning.ria.core import ria  # noqa: E402
 from pruning.wanda.core import wanda  # noqa: E402
 from pruning.magnitude.core import magnitude  # noqa: E402
+from pruning.sparsegpt.core import sparsegpt  # noqa: E402
 from quantization.calibrations.rtn.core import rtn  # noqa: E402
 from quantization.calibrations.awq.core import awq  # noqa: E402
 from quantization.calibrations.gptq.core import gptq  # noqa: E402
@@ -49,10 +51,11 @@ class CompressForCausalLM:
         raise NotImplementedError
 
     @torch.inference_mode()
-    def profile(self, quant_config, device, save_path="./", **kwargs):
+    def profile(self, quant_config, device, **kwargs):
         LOGGER.info("Profiling model...")
-        mse = kwargs.get("mse", False)
         mixed_precision = kwargs.get("mixed_precision")
+        save_path = kwargs.get("save_path", "./")
+        mse = kwargs.get("w_clip", False)
 
         self._prepare_qmodule(
             quant_config=quant_config,
@@ -100,17 +103,19 @@ class CompressForCausalLM:
         if kwargs.get("quantize"):
             try:
                 mixed_precision = kwargs.get("mixed_precision")
+                mse = kwargs.get("w_clip", False)
+
                 self._prepare_qmodule(
                     quant_config=quant_config, mixed_precision=mixed_precision
                 )
 
                 if quant_method == "rtn":
-                    rtn(self, device, mse=True, verbose=True)
+                    rtn(self, device, mse=mse, verbose=True)
 
                 elif quant_method == "smoothquant":
                     n_samples = kwargs.get("n_samples", 128)
                     seq_len = kwargs.get("seq_len", 2048)
-                    alpha = kwargs.get("alpha", 0.5)
+                    alpha = kwargs.get("alpha", 0.8)
                     smoothquant(
                         self,
                         device,
@@ -118,7 +123,7 @@ class CompressForCausalLM:
                         alpha=alpha,
                         n_samples=n_samples,
                         seq_len=seq_len,
-                        mse=True,
+                        mse=mse,
                         verbose=True,
                     )
                 elif quant_method == "awq":
@@ -130,7 +135,7 @@ class CompressForCausalLM:
                         tokenizer,
                         n_samples=n_samples,
                         seq_len=seq_len,
-                        mse=True,
+                        mse=mse,
                         verbose=True,
                     )
                 elif quant_method == "gptq":
@@ -141,7 +146,7 @@ class CompressForCausalLM:
                         device,
                         n_samples=n_samples,
                         seq_len=seq_len,
-                        mse=True,
+                        mse=mse,
                         verbose=True,
                     )
                 elif quant_method == "awq_plus":
@@ -153,7 +158,7 @@ class CompressForCausalLM:
                         tokenizer,
                         n_samples=n_samples,
                         seq_len=seq_len,
-                        mse=True,
+                        mse=mse,
                         verbose=True,
                     )
                 elif quant_method == "spinquant-opt":
@@ -166,7 +171,7 @@ class CompressForCausalLM:
                         mode="optimize",
                         n_samples=n_samples,
                         seq_len=seq_len,
-                        mse=True,
+                        mse=mse,
                         verbose=True,
                         quant_config=quant_config,
                         rotation_path=rotation_path,
@@ -181,7 +186,7 @@ class CompressForCausalLM:
                         mode="hadamard",
                         n_samples=n_samples,
                         seq_len=seq_len,
-                        mse=True,
+                        mse=mse,
                         verbose=True,
                         quant_config=quant_config,
                         rotation_path=rotation_path,
@@ -194,7 +199,7 @@ class CompressForCausalLM:
                         device,
                         n_samples=n_samples,
                         seq_len=seq_len,
-                        mse=True,
+                        mse=mse,
                         verbose=True,
                     )
             except Exception as e:
@@ -219,6 +224,30 @@ class CompressForCausalLM:
                         self,
                         device,
                         sparsity_ratio=sparsity_ratio,
+                        n_samples=n_samples,
+                        seq_len=seq_len,
+                        verbose=True,
+                    )
+                elif prune_method == "sparsegpt":
+                    n_samples = kwargs.get("n_samples", 128)
+                    seq_len = kwargs.get("seq_len", 2048)
+                    sparsegpt(
+                        self,
+                        device,
+                        sparsity_ratio=sparsity_ratio,
+                        n_samples=n_samples,
+                        seq_len=seq_len,
+                        verbose=True,
+                    )
+                elif prune_method == "ria":
+                    n_samples = kwargs.get("n_samples", 128)
+                    seq_len = kwargs.get("seq_len", 2048)
+                    alpha = kwargs.get("alpha", 0.5)
+                    ria(
+                        self,
+                        device,
+                        sparsity_ratio=sparsity_ratio,
+                        alpha=alpha,
                         n_samples=n_samples,
                         seq_len=seq_len,
                         verbose=True,

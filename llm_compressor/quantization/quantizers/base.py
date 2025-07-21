@@ -28,7 +28,21 @@ class BaseQuantizer(nn.Module):
         raise NotImplementedError
 
     def record_stats(self, x, qdq_x, **kwargs):
-        keys = ("Op Name", "PC99%", "Max", "QDQ(Max)", "SQNR")
+        qtype = kwargs.get("qtype")
+        qformat = kwargs.get("qformat")
+        group_size = kwargs.get("group_size")
+        zero_point = kwargs.get("zero_point")
+
+        keys = (
+            "Op Name",
+            "PC99%",
+            "Max",
+            "QDQ(Max)",
+            "SQNR",
+            "ClipError",
+            "Elem",
+            "BPV",
+        )
 
         def compute_sqnr(t, qdq_t):
             t_ = (t - t.min()) / (t.max() - t.min())
@@ -45,8 +59,48 @@ class BaseQuantizer(nn.Module):
         qdq_maxval = qdq_x_.max().item()
         pc99_val = extract_percentile(x_, 0.99)
         sqnr_val = compute_sqnr(x_, qdq_x_)
+        clip_err = maxval - qdq_maxval
 
-        vals = (self.op_name, pc99_val, maxval, qdq_maxval, sqnr_val)
+        if qtype == "DUMMY":
+            bpv = 16
+
+        elif qtype == "INT":
+            bpv_scales = 16 / group_size
+            bpv_zeros = 16 / group_size if zero_point else 0
+            bpv_elem = 4 if qformat == "INT4" else 8
+            bpv = bpv_elem + bpv_scales + bpv_zeros
+
+        elif qtype == "FP":
+            bpv_scales = 16 / group_size
+            bpv_zeros = 16 / group_size if zero_point else 0
+            bpv_elem = 4 if qformat == "FP4_E2M1" else 8
+            bpv = bpv_elem + bpv_scales + bpv_zeros
+
+        elif qtype == "MX":
+            bpv_scales = 16 / group_size
+            bpv_zeros = 16 / group_size if zero_point else 0
+            if qformat == "INT4" or qformat == "FP4_E2M1":
+                bpv_elem = 4
+            else:
+                bpv_elem = 8
+            bpv = bpv_elem + bpv_scales + bpv_zeros
+
+        elif qtype == "NV":
+            bpv_scales = 16 / x_.numel() + 8 / group_size
+            bpv_zeros = 16 / group_size if zero_point else 0
+            bpv_elem = 4
+            bpv = bpv_elem + bpv_scales + bpv_zeros
+
+        vals = (
+            self.op_name,
+            pc99_val,
+            maxval,
+            qdq_maxval,
+            sqnr_val,
+            clip_err,
+            x_.numel(),
+            bpv,
+        )
 
         s = (
             ""

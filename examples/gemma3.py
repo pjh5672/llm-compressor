@@ -26,6 +26,7 @@ model = CompressGemma3ForCausalLM.from_pretrained(
 prune_kwargs = {
     "n_samples": args.calib_num,
     "seq_len": args.seq_len,
+    "alpha": args.ria_alpha,
 }
 model.prune(
     tokenizer=tokenizer,
@@ -50,6 +51,8 @@ quant_kwargs = {
     "n_samples": args.calib_num,
     "seq_len": args.seq_len,
     "rotation_path": args.rotation_path,
+    "w_clip": args.w_clip,
+    "alpha": args.sq_alpha,
 }
 model.quantize(
     tokenizer=tokenizer,
@@ -64,13 +67,12 @@ model.quantize(
 evaluator = LMEvaluator(
     model=model, 
     device=device,
-    n_samples=128
+    n_samples=128,
 )
 eval_kwargs = {
-    "tokenizer_path": args.model,
     "seq_len": args.seq_len,
     "batch_size": args.batch_size,
-    "check_sparsity": args.prune,
+    "is_check_sparsity": args.prune,
 }
 results = evaluator.eval(tasks=args.tasks, **eval_kwargs)
 print_eval(results)

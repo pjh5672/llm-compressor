@@ -60,7 +60,7 @@ class NVFPQuantizer(BaseQuantizer):
         self.register_buffer("s_ebits", torch.tensor(s_ebits))
         self.register_buffer("s_mbits", torch.tensor(s_mbits))
         self.register_buffer("s_max_norm", torch.tensor(s_max_norm))
-        self.str_format = str(format)
+        self.str_format = str(format).split(".")[-1].upper()
         self.mse = False
         self.configure(zero_point=zero_point, group_size=group_size, axes=axes)
 
@@ -168,7 +168,14 @@ class NVFPQuantizer(BaseQuantizer):
             x_dq = self.fake_quantize(x, scales=scales, zeros=zeros)
 
         if self.is_profile:
-            self.record_stats(x=x, qdq_x=x_dq)
+            self.record_stats(
+                x=x,
+                qdq_x=x_dq,
+                qtype="NV",
+                qformat=self.str_format,
+                group_size=self.group_size,
+                zero_point=self.zero_point,
+            )
 
         return _undo_reshape_to_blocks(
             x_dq,
@@ -193,7 +200,7 @@ class NVFPQuantizer(BaseQuantizer):
         return q * scales + zeros
 
     def extra_repr(self):
-        s = f"Format: MX{self.str_format.split('.')[-1].upper()}, "
+        s = f"Format: NV{self.str_format}, "
         s += f"Min: {-self.max_norm}, Max: {self.max_norm}, Axes: {self.axes}"
         if self.is_profile:
             s += f", Op name: {self.op_name}"

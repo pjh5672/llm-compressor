@@ -34,7 +34,11 @@ class DummyQuantizer(BaseQuantizer):
 
     def forward(self, x, **kwargs):
         if self.is_profile:
-            self.record_stats(x=x, qdq_x=x)
+            self.record_stats(
+                x=x,
+                qdq_x=x,
+                qtype="DUMMY",
+            )
         return x
 
     def fake_quantize(self):

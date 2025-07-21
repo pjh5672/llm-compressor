@@ -39,7 +39,7 @@ def magnitude(model, device, sparsity_ratio, verbose=True):
             W_metric = torch.abs(W)
             thresh = torch.sort(W_metric.flatten())[0][int(W.numel() * sparsity_ratio)]
             W_mask = W_metric <= thresh
-            
+
             subset[name].weight.data[W_mask] = 0
 
         layers[i] = layer.cpu()

@@ -328,11 +328,23 @@ def build_parser(root_dir):
         help="Path to rotation matrix for spinquant",
     )
 
+    parser.add_argument(
+        "--w-clip", action="store_true", help="Enable MSE-based weight clipping"
+    )
+
+    parser.add_argument(
+        "--sq-alpha", type=float, default=0.8, help="Hyp-param for SmoothQuant"
+    )
+
     parser.add_argument("--prune", action="store_true", help="Enable to prune model")
 
     parser.add_argument("--prune-method", type=str, default=None, help="Prune method")
 
     parser.add_argument("--sparsity", type=float, default=0.0, help="Sparsity ratio")
+
+    parser.add_argument(
+        "--ria-alpha", type=float, default=0.5, help="Hyp-param for RIA"
+    )
 
     parser.add_argument(
         "--calib-num", type=int, default=128, help="Number of calibration dataset"
@@ -347,7 +359,7 @@ def build_parser(root_dir):
     parser.add_argument(
         "--seq-len",
         type=int,
-        default=2048,
+        default=512,
         help="Sequence length for calibration and evaluation",
     )
 
@@ -375,14 +387,16 @@ def build_parser(root_dir):
     LOGGER.add(args.exp_dir / f"{file_date()}.log", level="DEBUG")
 
     args.pparser = PruneConfigParser()
-    args.prune_config = args.pparser.build_cfg(sparsity=args.sparsity)
+    args.prune_config = args.pparser.build_cfg(
+        sparsity=args.sparsity,
+    )
     args.qparser = QuantConfigParser(profile=args.profile)
     args.quant_config = args.qparser.build_cfg(
         args.weight, args.act_in, args.act_out, args.head
     )
     print_args(
         args=args,
-        exclude_keys=("pparser", "qparser", "exp_dir", "quant_config"),
+        exclude_keys=("pparser", "qparser", "exp_dir", "quant_config", "prune_config"),
         logger=LOGGER,
     )
     return args, device

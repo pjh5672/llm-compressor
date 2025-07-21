@@ -62,7 +62,7 @@ class MXQuantizer(BaseQuantizer):
         self.register_buffer("min_norm", torch.tensor(min_norm))
         self.scale_ebits = kwargs.get("scale_ebits", 8)
         self.scale_emax = 2 ** (self.scale_ebits - 1) - 1
-        self.str_format = str(format)
+        self.str_format = str(format).split(".")[-1].upper()
         self.mse = False
         self.configure(zero_point=zero_point, group_size=group_size, axes=axes)
 
@@ -169,7 +169,14 @@ class MXQuantizer(BaseQuantizer):
             x_dq = self.fake_quantize(x, scales=scales, zeros=zeros)
 
         if self.is_profile:
-            self.record_stats(x=x, qdq_x=x_dq)
+            self.record_stats(
+                x=x,
+                qdq_x=x_dq,
+                qtype="MX",
+                qformat=self.str_format,
+                group_size=self.group_size,
+                zero_point=self.zero_point,
+            )
 
         return _undo_reshape_to_blocks(
             x_dq,
@@ -194,7 +201,7 @@ class MXQuantizer(BaseQuantizer):
         return q * scales + zeros
 
     def extra_repr(self):
-        s = f"Format: MX{self.str_format.split('.')[-1].upper()}, "
+        s = f"Format: MX{self.str_format}, "
         s += f"Min: {-self.max_norm}, Max: {self.max_norm}, Axes: {self.axes}"
         if self.is_profile:
             s += f", Op name: {self.op_name}"

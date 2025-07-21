@@ -15,7 +15,7 @@ A lightweight, modular toolkit for compressing Large Language Models (LLMs) usin
 ## 🚀 Features
 
 - ✅ Support **Unstructured pruning**
-    + Magnitude / Wanda alogithms
+    + Magnitude / Wanda / SparseGPT / RIA alogithms
 - ✅ Support **Post-training quantization(PTQ)**
     + INT / FP / MX / NVFP4 format
     + 4-bit / 8-bit Fake quantizer support
@@ -44,8 +44,8 @@ A lightweight, modular toolkit for compressing Large Language Models (LLMs) usin
 ## 📚 Documentation
 
 - [Getting Started](docs/getting_started.md)
-- [Pruning Docs](docs/pruning.md)
-- [Quantization Docs](docs/quantization.md)
+- [Pruning docs](docs/pruning.md)
+- [Quantization docs](docs/quantization.md)
 
 ---
 

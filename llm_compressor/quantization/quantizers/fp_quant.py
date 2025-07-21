@@ -69,7 +69,7 @@ class FPQuantizer(BaseQuantizer):
         self.register_buffer("emax", torch.tensor(emax))
         self.register_buffer("max_norm", torch.tensor(max_norm))
         self.register_buffer("min_norm", torch.tensor(min_norm))
-        self.str_format = str(format)
+        self.str_format = str(format).split(".")[-1].upper()
         self.mse = False
         self.configure(zero_point=zero_point, group_size=group_size, axes=axes)
 
@@ -200,7 +200,14 @@ class FPQuantizer(BaseQuantizer):
             x_dq = self.fake_quantize(x, scales=scales, zeros=zeros)
 
         if self.is_profile:
-            self.record_stats(x=x, qdq_x=x_dq)
+            self.record_stats(
+                x=x,
+                qdq_x=x_dq,
+                qtype="FP",
+                qformat=self.str_format,
+                group_size=self.group_size,
+                zero_point=self.zero_point,
+            )
 
         if self.group_size != 0:
             return _undo_reshape_to_blocks(
@@ -227,7 +234,7 @@ class FPQuantizer(BaseQuantizer):
         return q * scales + zeros
 
     def extra_repr(self):
-        s = f"Format: {self.str_format.split('.')[-1].upper()}, "
+        s = f"Format: {self.str_format}, "
         s += f"Min: {-self.max_norm}, Max: {self.max_norm}, Axes: {self.axes}"
         if self.is_profile:
             s += f", Op name: {self.op_name}"
