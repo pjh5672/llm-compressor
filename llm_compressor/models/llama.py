@@ -157,8 +157,9 @@ class CompressLlamaForCausalLM(LlamaForCausalLM, CompressForCausalLM):
     ):
         super().__init__(config)
 
-    def _prepare_qmodule(self, quant_config, save_path="./", **kwargs):
+    def _prepare_qmodule(self, quant_config, **kwargs):
         mixed_precision = kwargs.get("mixed_precision")
+        save_path = kwargs.get("save_path", "./")
 
         for name, module in self.named_modules():
             if isinstance(module, LlamaAttention):
@@ -315,6 +316,7 @@ if __name__ == "__main__":
         "rotation_path": args.rotation_path,
         "w_clip": args.w_clip,
         "alpha": args.sq_alpha,
+        "mixed_precision": qparser.mpq,
     }
     model.quantize(
         tokenizer=tokenizer,

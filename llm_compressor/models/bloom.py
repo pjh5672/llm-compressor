@@ -167,8 +167,9 @@ class CompressBloomForCausalLM(BloomForCausalLM, CompressForCausalLM):
     ):
         super().__init__(config)
 
-    def _prepare_qmodule(self, quant_config, save_path="./", **kwargs):
+    def _prepare_qmodule(self, quant_config, **kwargs):
         mixed_precision = kwargs.get("mixed_precision")
+        save_path = kwargs.get("save_path", "./")
 
         for name, module in self.named_modules():
             if isinstance(module, BloomAttention):

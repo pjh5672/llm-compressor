@@ -47,7 +47,7 @@ class BaseQuantizer(nn.Module):
         def compute_sqnr(t, qdq_t):
             t_ = (t - t.min()) / (t.max() - t.min())
             qdq_t_ = (qdq_t - qdq_t.min()) / (qdq_t.max() - qdq_t.min())
-            return -10 * torch.log10(torch.mean((t_ - qdq_t_) ** 2) + 1e-8)
+            return -10 * torch.log10(torch.mean((t_ - qdq_t_) ** 2) + 1e-10)
 
         def extract_percentile(t, q):
             k = round(q * (t.numel() - 1))

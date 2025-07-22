@@ -53,6 +53,7 @@ quant_kwargs = {
     "rotation_path": args.rotation_path,
     "w_clip": args.w_clip,
     "alpha": args.sq_alpha,
+    "mixed_precision": args.qparser.mpq,
 }
 model.quantize(
     tokenizer=tokenizer,
