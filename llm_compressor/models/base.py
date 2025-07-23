@@ -75,14 +75,18 @@ class CompressForCausalLM:
 
             for name in subset:
                 subset[name].weight_quantizer.mse = mse
-                subset[name].weight_quantizer(subset[name].weight.data)
+                subset[name].weight.data = subset[name].weight_quantizer(
+                    subset[name].weight.data
+                )
 
             layers[i] = layer.cpu()
             del layer
 
         self.lm_head.to(device)
         self.lm_head.weight_quantizer.mse = mse
-        self.lm_head.weight_quantizer(self.lm_head.weight.data)
+        self.lm_head.weight.data = self.lm_head.weight_quantizer(
+            self.lm_head.weight.data
+        )
         self.lm_head.cpu()
 
         cleanup_memory(verbose=False)
