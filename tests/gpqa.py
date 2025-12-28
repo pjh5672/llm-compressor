@@ -9,7 +9,7 @@ choices = ["A", "B", "C", "D"]
 
 def build_prompt(example):
     prompt = f"Question: {example['question']}\n"
-    prompt += "\nAnswer:\nLet's think step by step.\n"
+    prompt += "\nExpress your final answer as the corresponding option 'A', 'B', 'C', or 'D'."
     return prompt
 
 
@@ -87,8 +87,7 @@ def main(model, tokenizer, n_samples=None):
 
 
 if __name__ == "__main__":
-    model_path = "/home/models/llama-3.1-8b-it"
-    # model_path = "/home/models/gpt-oss-20b"
+    model_path = "/home/models/gpt-oss-20b"
     model = AutoModelForCausalLM.from_pretrained(
         model_path,
         attn_implementation="eager",
@@ -96,7 +95,7 @@ if __name__ == "__main__":
         device_map="cpu",
     )
     tokenizer = AutoTokenizer.from_pretrained(model_path)
-    device = torch.device('cuda:0')
+    device = torch.device('cuda')
     model = model.to(device)
     model.eval()
 

@@ -36,7 +36,7 @@ def build_inputs(tokenizer, prompts, device, reasoning="low"):
 
 
 @torch.inference_mode()
-def compute_aime24(model, tokenizer, test_df, reasoning="low", max_new_tokens=512):
+def compute_aime24(model, tokenizer, test_df, reasoning="low", max_new_tokens=2048):
     cors = []
     device = model.device
     
@@ -100,7 +100,7 @@ if __name__ == "__main__":
         device_map="cpu",
     )
     tokenizer = AutoTokenizer.from_pretrained(model_path)
-    device = torch.device('cuda:1')
+    device = torch.device('cuda')
     model = model.to(device)
     model.eval()
 
