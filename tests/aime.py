@@ -36,7 +36,7 @@ def build_inputs(tokenizer, prompts, device, reasoning="low"):
 
 
 @torch.inference_mode()
-def compute_aime24(model, tokenizer, test_df, reasoning="low", max_new_tokens=2048):
+def compute_aime(model, tokenizer, test_df, reasoning="low", max_new_tokens=2048):
     cors = []
     device = model.device
     
@@ -72,7 +72,8 @@ def compute_aime24(model, tokenizer, test_df, reasoning="low", max_new_tokens=20
         outputs = outputs[0][inputs.shape[-1]:]
         pred = tokenizer.decode(outputs, skip_special_tokens=True)
         pred = extract_answer(pred)
-        gt = extract_answer(example["solution"])
+        gt = example["solution"] if "solution" in example else example["answer"]
+        gt = extract_answer(gt)
         cors.append(gt == pred)
 
     return cors
@@ -85,9 +86,19 @@ def main(model, tokenizer, n_samples=None):
         dataset = dataset.select(range(n_samples))
 
     test_df = pd.DataFrame(dataset)
-    cors = compute_aime24(model, tokenizer, test_df)
+    cors = compute_aime(model, tokenizer, test_df)
     weighted_acc = np.mean(cors)
     print("Average accuracy: {:.3f} - AIME24".format(weighted_acc))
+
+    dataset = load_dataset("math-ai/aime25", split="test")
+
+    if n_samples:
+        dataset = dataset.select(range(n_samples))
+
+    test_df = pd.DataFrame(dataset)
+    cors = compute_aime(model, tokenizer, test_df)
+    weighted_acc = np.mean(cors)
+    print("Average accuracy: {:.3f} - AIME25".format(weighted_acc))
 
 
 if __name__ == "__main__":
@@ -100,7 +111,7 @@ if __name__ == "__main__":
         device_map="cpu",
     )
     tokenizer = AutoTokenizer.from_pretrained(model_path)
-    device = torch.device('cuda')
+    device = torch.device('cuda:1')
     model = model.to(device)
     model.eval()
 
