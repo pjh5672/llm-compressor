@@ -14,8 +14,8 @@ def extract_answer(text):
 
 
 def build_prompt(example):
-    prompt = f"Problem: {example['problem']}\n"
-    prompt += "\nLet's think step by step.\n"
+    prompt = f"{example['problem']}\n"
+    prompt += "Please reason step by step.\n"
     return prompt
 
 
@@ -51,10 +51,10 @@ def compute_aime(model, tokenizer, test_df, reasoning="low", max_new_tokens=2048
             do_sample=False,
             pad_token_id=tokenizer.eos_token_id
         )
-        
-        final_prompt = "Write only the final numeric answer **without any explanation, words, or punctuation**, after 'Answer:'.\n"
-        final_prompt += "Answer:"
-        
+
+        final_prompt = "\nPut your final answer within \\boxed{{}}."
+        final_prompt += "\n\\boxed"
+
         inputs = torch.cat(
             [outputs,
             tokenizer(final_prompt, return_tensors="pt").input_ids.to(device)],
@@ -65,11 +65,11 @@ def compute_aime(model, tokenizer, test_df, reasoning="low", max_new_tokens=2048
         outputs = model.generate(
             input_ids=inputs,
             attention_mask=attention_mask,
-            max_new_tokens=2,
+            max_new_tokens=4,
             do_sample=False,
             pad_token_id=tokenizer.eos_token_id
         )
-        outputs = outputs[0][inputs.shape[-1]:]
+        outputs = outputs[0][inputs.shape[-1]-2:]
         pred = tokenizer.decode(outputs, skip_special_tokens=True)
         pred = extract_answer(pred)
         gt = example["solution"] if "solution" in example else example["answer"]
@@ -90,6 +90,16 @@ def main(model, tokenizer, n_samples=None):
     weighted_acc = np.mean(cors)
     print("Average accuracy: {:.3f} - AIME24".format(weighted_acc))
 
+    dataset = load_dataset("math-ai/aime25", split="test")
+
+    if n_samples:
+        dataset = dataset.select(range(n_samples))
+
+    test_df = pd.DataFrame(dataset)
+    cors = compute_aime(model, tokenizer, test_df)
+    weighted_acc = np.mean(cors)
+    print("Average accuracy: {:.3f} - AIME25".format(weighted_acc))
+
 
 if __name__ == "__main__":
     # model_path = "/home/models/llama-3.1-8b-it"
@@ -101,7 +111,7 @@ if __name__ == "__main__":
         device_map="cpu",
     )
     tokenizer = AutoTokenizer.from_pretrained(model_path)
-    device = torch.device('cuda')
+    device = torch.device('cuda:1')
     model = model.to(device)
     model.eval()
 
