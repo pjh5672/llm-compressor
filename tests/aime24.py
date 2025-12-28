@@ -74,8 +74,7 @@ def compute_aime24(model, tokenizer, test_df, reasoning="low", max_new_tokens=51
         pred = extract_answer(pred)
         gt = extract_answer(example["solution"])
         cors.append(gt == pred)
-        print(user_prompts)
-        print(f"index:{i} -> pred: {pred} | gt: {gt}")
+
     return cors
 
 
