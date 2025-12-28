@@ -90,16 +90,6 @@ def main(model, tokenizer, n_samples=None):
     weighted_acc = np.mean(cors)
     print("Average accuracy: {:.3f} - AIME24".format(weighted_acc))
 
-    dataset = load_dataset("math-ai/aime25", split="test")
-
-    if n_samples:
-        dataset = dataset.select(range(n_samples))
-
-    test_df = pd.DataFrame(dataset)
-    cors = compute_aime(model, tokenizer, test_df)
-    weighted_acc = np.mean(cors)
-    print("Average accuracy: {:.3f} - AIME25".format(weighted_acc))
-
 
 if __name__ == "__main__":
     # model_path = "/home/models/llama-3.1-8b-it"
