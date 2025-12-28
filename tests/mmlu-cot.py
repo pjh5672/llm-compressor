@@ -15,49 +15,62 @@ def format_subject(subject):
     return s
 
 
-def format_example(df, idx, include_answer=True):
-    question = df.iloc[idx, 0]
-    prompt = f"Question: {question}\n"
+def format_example(df, idx):
+    prompt = "The following are multiple choice questions (with answers) about {}.\n\n".format(
+        format_subject(df.iloc[idx, 1])
+    )
+    prompt += f"Question: {df.iloc[idx, 0]}\n"
 
     options = df.iloc[idx, -2]
     for i, o in enumerate(options):
         prompt += "\n{}. {}".format(choices[i], o)
-    prompt += "\n\nAnswer:"
-    if include_answer:
-        prompt += " {}\n\n".format(choices[df.iloc[idx, -1]])
+    prompt += "\nAnswer:\nLet's think step by step.\n"
     return prompt
 
 
-def gen_prompt(train_df, subject, k=-1):
-    prompt = "The following are multiple choice questions (with answers) about {}.\n\n".format(
-        format_subject(subject)
+def build_inputs(tokenizer, prompts, device, reasoning="low"):
+    messages = [{
+        "role": "user", 
+        "content": prompts,
+    }]
+    prompts = tokenizer.apply_chat_template(
+        messages,
+        tokenize=False,
+        add_generation_prompt=True, 
+        return_tensors="pt",
     )
-    if k == -1:
-        k = train_df.shape[0]
-    for i in range(k):
-        prompt += format_example(train_df, i)
-    return prompt
+    prompts = prompts.replace("Reasoning: medium", f"Reasoning: {reasoning}")
+    inputs = tokenizer(prompts, return_tensors="pt").to(device)
+    return prompts, inputs
 
 
 @torch.inference_mode()
-def compute_mmlu(subject, model, tokenizer, dev_df, test_df, n_samples=None):
+def compute_mmlu(subject, model, tokenizer, test_df, n_samples=None, reasoning="low", max_new_tokens=512):
     cors = []
     device = model.device
 
     for i in range(test_df.shape[0]):
-        k = 0
-        prompt_end = format_example(test_df, i, include_answer=False)
-        train_prompt = gen_prompt(dev_df, subject, k)
-        prompt = train_prompt + prompt_end
-        inputs = tokenizer(prompt, return_tensors="pt").to(device)
+        user_prompts = format_example(test_df, i)
+        prompts, inputs = build_inputs(tokenizer, user_prompts, device, reasoning)
+        # print(user_prompts)
+        # print(prompts)
+        
+        outputs = model.generate(
+            **inputs,
+            max_new_tokens=max_new_tokens,
+            do_sample=False,
+            pad_token_id=tokenizer.eos_token_id
+        )
+        # gen_ids = outputs[0][inputs.input_ids.shape[-1]:]
+        # decoded = tokenizer.decode(gen_ids, skip_special_tokens=False)
+        # print(decoded)
 
-        while inputs.input_ids.shape[-1] > 2048:
-            k -= 1
-            train_prompt = gen_prompt(dev_df, subject, k)
-            prompt = train_prompt + prompt_end
-            inputs = tokenizer(prompt, return_tensors="pt").to(device)
-
-        logits = model(input_ids=inputs.input_ids).logits[0, -1]
+        inputs = torch.cat(
+            [outputs,
+            tokenizer("\nAnswer:", return_tensors="pt").input_ids.to(device)],
+            dim=1,
+        )
+        logits = model(input_ids=inputs).logits[0, -1]
         probs = (
             torch.nn.functional.softmax(
                 torch.tensor(
@@ -80,24 +93,21 @@ def compute_mmlu(subject, model, tokenizer, dev_df, test_df, n_samples=None):
 
         if i == n_samples:
             break
-
+    
     print("Average accuracy {:.3f} - {}".format(np.mean(cors), subject))
     return cors
 
 
 def main(model, tokenizer, n_samples=None):
     test_dataset = load_dataset("cais/mmlu", "all", split="test")
-    dev_dataset = load_dataset("cais/mmlu", "all", split="dev")
     test_df = pd.DataFrame(test_dataset)
-    dev_df = pd.DataFrame(dev_dataset)
 
     all_cors = []
     subjects = sorted(set(test_df["subject"]))
 
     for subject in subjects:
         cate_test_df = test_df[test_df["subject"] == subject]
-        cate_dev_df = dev_df[dev_df["subject"] == subject]
-        cors = compute_mmlu(subject, model, tokenizer, cate_dev_df, cate_test_df, n_samples=n_samples)
+        cors = compute_mmlu(subject, model, tokenizer, cate_test_df, n_samples=n_samples)
         all_cors.append(cors)
 
     weighted_acc = np.mean(np.concatenate(all_cors))
@@ -105,8 +115,7 @@ def main(model, tokenizer, n_samples=None):
 
 
 if __name__ == "__main__":
-    model_path = "/home/models/llama-3.2-1b-it"
-    # model_path = "/home/models/gpt-oss-20b"
+    model_path = "/home/models/gpt-oss-20b"
     model = AutoModelForCausalLM.from_pretrained(
         model_path,
         attn_implementation="eager",
@@ -114,7 +123,7 @@ if __name__ == "__main__":
         device_map="cpu",
     )
     tokenizer = AutoTokenizer.from_pretrained(model_path)
-    device = torch.device('cuda:1')
+    device = torch.device('cuda')
     model = model.to(device)
     model.eval()
 
